@@ -1,0 +1,2721 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-100">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>IzaEasy Lodge Manager - Offline Hybrid (SHIFT HANDOVER v6)</title>
+<meta name="theme-color" content="#0f172a" />
+<link rel="manifest" href="manifest.webmanifest" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .badge-vacant { background-color:#10b981; color:#fff; }
+  .badge-reserved { background-color:#f59e0b; color:#fff; }
+  .badge-occupied { background-color:#ef4444; color:#fff; }
+  .badge-cleaning { background-color:#3b82f6; color:#fff; }
+  .badge-maintenance { background-color:#6b7280; color:#fff; }
+  .modal-bg { background:rgba(0,0,0,0.6); }
+  .card-shadow { box-shadow:0 10px 30px rgba(0,0,0,0.08); }
+  .hidden-important { display:none !important; }
+  input[type="number"]::-webkit-inner-spin-button { height:auto; }
+</style>
+</head>
+\1
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./sw.js').catch(function(e){
+      console.warn('SW registration failed:', e);
+    });
+  });
+}
+</script>
+
+
+
+<div id="app" class="min-h-screen flex flex-col">
+
+  <!-- LOGIN SCREEN -->
+  <div id="loginScreen" class="flex flex-1 items-center justify-center p-6">
+    <div class="w-full max-w-md bg-white rounded-xl card-shadow p-6 space-y-6">
+      <div class="text-center">
+        <div class="text-xl font-semibold text-slate-900">IzaEasy Lodge Manager</div>
+        <div class="text-sm text-slate-500">Hybrid Offline / Sync Demo</div>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Username</label>
+          <input id="loginUsername" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="manager or attendant" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Password</label>
+          <input id="loginPassword" type="password" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="1234" />
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <button id="loginBtn" class="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 text-sm font-medium">
+          Sign In
+        </button>
+
+        <button id="resetDemoBtn"
+          class="w-full rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 py-2.5 text-sm font-medium border border-slate-300">
+          Reset Demo Data
+        </button>
+
+        <div id="loginError" class="text-center text-xs text-red-500 hidden leading-4">
+          Invalid credentials.<br/>
+          Try manager / 1234 or attendant / 1234.<br/>
+          If it keeps failing, tap "Reset Demo Data".
+        </div>
+      </div>
+
+      <div class="text-[10px] text-slate-400 text-center leading-4">
+        Manager: manager / 1234<br/>
+        Attendant: attendant / 1234<br/>
+        All data is local/offline in this demo.
+      </div>
+    </div>
+  </div>
+
+  <!-- APP LAYOUT -->
+  <div id="mainUI" class="hidden flex flex-1 overflow-hidden">
+
+    <!-- SIDEBAR -->
+    <aside class="w-64 bg-slate-900 text-slate-100 flex flex-col">
+      <div class="px-4 py-4 border-b border-slate-800">
+        <div class="text-lg font-semibold text-white">IzaEasy Lodge</div>
+        <div class="text-[11px] text-slate-400 leading-3">Executive Lodge Control</div>
+        <div id="currentUserInfo" class="text-[11px] text-slate-300 leading-3 mt-2"></div>
+        <div id="onlineStatusBadge" class="inline-block text-[10px] mt-2 px-2 py-0.5 rounded bg-slate-700 text-slate-300">Offline?</div>
+      </div>
+
+      <nav class="flex-1 overflow-y-auto py-4 text-sm space-y-1">
+        <button data-section="dashboardSection"
+          class="sidebarBtn managerOnly flex w-full items-center justify-between px-4 py-2 text-left hover:bg-slate-800 rounded-lg">
+          <span class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+            Dashboard
+          </span>
+        </button>
+
+        <button data-section="posSection"
+          class="sidebarBtn bothRoles flex w-full items-center justify-between px-4 py-2 text-left hover:bg-slate-800 rounded-lg">
+          <span class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-indigo-400"></span>
+            POS / Front Desk
+          </span>
+        </button>
+
+        <button data-section="reservationsSection"
+          class="sidebarBtn bothRoles flex w-full items-center justify-between px-4 py-2 text-left hover:bg-slate-800 rounded-lg">
+          <span class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-amber-400"></span>
+            Reservations
+          </span>
+        </button>
+
+        <button data-section="roomsSection"
+          class="sidebarBtn managerOnly flex w-full items-center justify-between px-4 py-2 text-left hover:bg-slate-800 rounded-lg">
+          <span class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-blue-400"></span>
+            Rooms / Status
+          </span>
+        </button>
+
+        <button data-section="ratesSection"
+          class="sidebarBtn managerOnly flex w-full items-center justify-between px-4 py-2 text-left hover:bg-slate-800 rounded-lg">
+          <span class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-fuchsia-400"></span>
+            Rates & Pricing
+          </span>
+        </button>
+
+        <button data-section="usersSection"
+          class="sidebarBtn managerOnly flex w-full items-center justify-between px-4 py-2 text-left hover:bg-slate-800 rounded-lg">
+          <span class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-sky-400"></span>
+            Users & Access
+          </span>
+        </button>
+
+        <button data-section="settingsSection"
+          class="sidebarBtn managerOnly flex w-full items-center justify-between px-4 py-2 text-left hover:bg-slate-800 rounded-lg">
+          <span class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-slate-400"></span>
+            Settings
+          </span>
+        </button>
+
+        <button data-section="nightAuditSection"
+          class="sidebarBtn managerOnly flex w-full items-center justify-between px-4 py-2 text-left hover:bg-slate-800 rounded-lg">
+          <span class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-purple-400"></span>
+            Night Audit
+          </span>
+        </button>
+
+        <button data-section="cashupSection"
+          class="sidebarBtn managerOnly flex w-full items-center justify-between px-4 py-2 text-left hover:bg-slate-800 rounded-lg">
+          <span class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-lime-400"></span>
+            Shift Cash-Up
+          </span>
+        </button>
+      </nav>
+
+      <div class="px-4 py-4 border-t border-slate-800 text-xs space-y-2">
+        <button id="syncBtn" class="w-full rounded bg-slate-800 hover:bg-slate-700 py-2 text-slate-200 font-medium text-xs">
+          Sync Now
+        </button>
+        <button id="logoutBtn" class="w-full rounded bg-red-600 hover:bg-red-500 py-2 text-white font-medium text-xs">
+          Logout
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-6">
+
+      <!-- DASHBOARD -->
+      <section id="dashboardSection" class="hidden">
+        <div class="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
+          <span>Dashboard / Today</span>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-slate-200 text-slate-600" id="todayDateLabel"></span>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="bg-white rounded-xl p-4 card-shadow">
+            <div class="text-xs text-slate-500">Occupied</div>
+            <div id="kpiOccupied" class="text-2xl font-semibold text-slate-900">0</div>
+          </div>
+          <div class="bg-white rounded-xl p-4 card-shadow">
+            <div class="text-xs text-slate-500">Vacant & Ready</div>
+            <div id="kpiVacant" class="text-2xl font-semibold text-slate-900">0</div>
+          </div>
+          <div class="bg-white rounded-xl p-4 card-shadow">
+            <div class="text-xs text-slate-500">Checkouts Due Today</div>
+            <div id="kpiDueCheckout" class="text-2xl font-semibold text-slate-900">0</div>
+          </div>
+          <div class="bg-white rounded-xl p-4 card-shadow">
+            <div class="text-xs text-slate-500">Arrivals / Reservations</div>
+            <div id="kpiArrivals" class="text-2xl font-semibold text-slate-900">0</div>
+          </div>
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-2 mt-6">
+          <div class="bg-white rounded-xl p-4 card-shadow">
+            <div class="text-sm font-semibold text-slate-800 mb-2">Due to Checkout Today</div>
+            <div id="checkoutList" class="space-y-2 text-xs text-slate-700"></div>
+          </div>
+
+          <div class="bg-white rounded-xl p-4 card-shadow">
+            <div class="text-sm font-semibold text-slate-800 mb-2">Expected Arrivals</div>
+            <div id="arrivalList" class="space-y-2 text-xs text-slate-700"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- POS -->
+      <section id="posSection" class="hidden">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div class="text-xl font-semibold text-slate-900">POS / Front Desk</div>
+          <div class="text-[11px] text-slate-500 leading-3">
+            Check In • Reserve (full 1st night) • Extend Stay • Checkout
+          </div>
+        </div>
+
+        <div class="mt-4 space-y-6" id="posRoomsWrapper"></div>
+
+        <div class="mt-8 bg-white rounded-xl card-shadow p-4">
+          <div class="text-sm font-semibold text-slate-800 mb-2 flex items-center justify-between">
+            <span>Currently Checked-In Guests</span>
+            <span class="text-[10px] text-slate-400 font-normal">Extend Stay / Checkout</span>
+          </div>
+          <div id="activeStaysList" class="text-xs text-slate-700 divide-y divide-slate-200"></div>
+        </div>
+      </section>
+
+      <!-- RESERVATIONS -->
+      <section id="reservationsSection" class="hidden">
+        <div class="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
+          <span>Reservations / Arrivals</span>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-700">Full 1st Night REQUIRED</span>
+        </div>
+
+        <div class="bg-white rounded-xl card-shadow p-4">
+          <div class="text-sm font-semibold text-slate-800 mb-2 flex items-center justify-between">
+            <span>Reserved Rooms</span>
+            <span class="text-[10px] text-slate-400 font-normal">Check In Now / Manager Cancel</span>
+          </div>
+          <div id="reservationsList" class="text-xs text-slate-700 divide-y divide-slate-200"></div>
+        </div>
+      </section>
+
+      <!-- ROOMS / STATUS -->
+      <section id="roomsSection" class="hidden">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+          <div class="text-xl font-semibold text-slate-900 leading-6">
+            Rooms & Status
+            <div class="text-[11px] text-slate-500 leading-3 font-normal">
+              Live status by category (Low Budget / Standard / Executive)
+            </div>
+          </div>
+
+          <button
+  id="openAddRoomBtn"
+  class="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-2"
+  onclick="openAddRoomModal()">
+  + Add Room
+</button>
+        </div>
+
+        <div class="space-y-6 text-sm" id="managerRoomsWrapper"></div>
+      </section>
+
+      <!-- RATES -->
+      <section id="ratesSection" class="hidden">
+        <div class="text-xl font-semibold text-slate-900 mb-4 flex items-center justify-between">
+          <span>Rates & Pricing</span>
+          <span class="text-[10px] text-slate-500 leading-3">Manager can edit base room rates here</span>
+        </div>
+
+        <div class="bg-white rounded-xl card-shadow p-4 text-sm overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-700 min-w-[400px]">
+            <thead class="text-slate-500 text-[11px] uppercase">
+              <tr>
+                <th class="py-2">Room</th>
+                <th class="py-2">Type</th>
+                <th class="py-2">Base Rate / Night (K)</th>
+                <th class="py-2 text-right">Update</th>
+              </tr>
+            </thead>
+            <tbody id="ratesTableBody" class="divide-y divide-slate-200"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- USERS -->
+      <section id="usersSection" class="hidden">
+        <div class="text-xl font-semibold text-slate-900 mb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <div>Users & Access Control</div>
+            <div class="text-[11px] text-slate-500 leading-3">Create attendants, promote to manager, deactivate staff.</div>
+          </div>
+          <button id="openAddUserRealBtn" class="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-2" onclick="openUserModal()">
+            + Add User
+          </button>
+        </div>
+
+        <div class="bg-white rounded-xl card-shadow p-4 text-xs overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-700 min-w-[400px]">
+            <thead class="text-[11px] text-slate-500 uppercase">
+              <tr>
+                <th class="py-2">Username</th>
+                <th class="py-2">Role</th>
+                <th class="py-2">Status</th>
+                <th class="py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody" class="divide-y divide-slate-200"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="settingsSection" class="hidden">
+        <div class="text-xl font-semibold text-slate-900 mb-4">Settings & Sync</div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="bg-white rounded-xl card-shadow p-4 text-sm space-y-3">
+            <div class="font-semibold text-slate-800">Sync / Offline</div>
+            <div class="text-[11px] text-slate-600 leading-4">
+              - This app works 100% offline.<br/>
+              - All check-ins / reservations / checkouts are queued in <code>pendingQueue</code>.<br/>
+              - When you're back online, "Sync Now" will push them (stub for Firestore).<br/>
+            </div>
+            <div class="text-[11px] text-slate-500">
+              Pending actions: <span id="pendingCount" class="font-semibold text-slate-800">0</span>
+            </div>
+
+            <div class="text-[11px] text-slate-500 leading-4 border-t border-slate-200 pt-3">
+              Backup Queue: <span id="backupCount" class="font-semibold text-slate-800">0</span><br/>
+              (Snapshots waiting to upload to cloud later)
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl card-shadow p-4 text-sm space-y-4">
+            <div>
+              <div class="font-semibold text-slate-800 mb-1">Daily Backup / Export Data</div>
+              <div class="text-[11px] text-slate-600 leading-4">
+                Download full lodge data JSON right now OR queue it for upload later.
+              </div>
+              <div class="flex flex-wrap gap-2 mt-2">
+                <button class="rounded bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-medium px-3 py-2"
+                  onclick="downloadBackupJSON()">
+                  Download Backup JSON
+                </button>
+                <button class="rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[11px] font-medium px-3 py-2 border border-slate-300"
+                  onclick="queueCloudBackup()">
+                  Queue Cloud Backup
+                </button>
+              </div>
+            </div>
+
+            <div class="border-t border-slate-200 pt-3">
+              <div class="font-semibold text-slate-800 mb-1">Install App</div>
+              <div class="text-[11px] text-slate-600 leading-4">
+                Add IzaEasy Lodge Manager to your Home Screen / Desktop for full-screen POS.
+              </div>
+              <button id="installAppBtn"
+                class="mt-2 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-medium px-3 py-2"
+                onclick="installApp()">
+                Install / Add to Home Screen
+              </button>
+              <div class="text-[10px] text-slate-400 leading-4 mt-2">
+                Note: For install + offline launch, open this file via a local web server or simple hosting.
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- NIGHT AUDIT SECTION -->
+      <section id="nightAuditSection" class="hidden">
+        <div class="text-xl font-semibold text-slate-900 mb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <div>Night Audit Summary</div>
+            <div class="text-[11px] text-slate-500 leading-3">
+              Snapshot for manager: who is sleeping in-house, balances owing, and expected checkouts next day.
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="printNightAuditBtn"
+              class="rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium px-3 py-2"
+              onclick="window.print()">
+              Print Night Audit
+            </button>
+            <button id="pdfNightAuditBtn"
+              class="rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium px-3 py-2 border border-slate-300"
+              onclick="window.print()">
+              Save as PDF
+            </button>
+          </div>
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="bg-white rounded-xl card-shadow p-4 text-xs">
+            <div class="text-sm font-semibold text-slate-800 mb-2 flex items-center justify-between">
+              <span>In-House Guests (Occupied Rooms)</span>
+              <span class="text-[10px] text-slate-400 font-normal">Balance & Checkout</span>
+            </div>
+            <div id="nightAuditInhouse" class="divide-y divide-slate-200"></div>
+          </div>
+
+          <div class="bg-white rounded-xl card-shadow p-4 text-xs">
+            <div class="text-sm font-semibold text-slate-800 mb-2 flex items-center justify-between">
+              <span>Expected Checkouts (Next 24h)</span>
+              <span class="text-[10px] text-slate-400 font-normal">Watch balances</span>
+            </div>
+            <div id="nightAuditDue" class="divide-y divide-slate-200"></div>
+          </div>
+        </div>
+
+        <div class="mt-6 bg-white rounded-xl card-shadow p-4 text-xs">
+          <div class="text-sm font-semibold text-slate-800 mb-2 flex items-center justify-between">
+            <span>Outstanding Balances (Guests still owing)</span>
+            <span class="text-[10px] text-red-600 font-normal">Collect before checkout</span>
+          </div>
+          <div id="nightAuditBalances" class="divide-y divide-slate-200"></div>
+        </div>
+      </section>
+
+      <!-- SHIFT CASH-UP SECTION -->
+      <section id="cashupSection" class="hidden">
+        <div class="text-xl font-semibold text-slate-900 mb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <div>Shift Cash-Up Report</div>
+            <div class="text-[11px] text-slate-500 leading-3">
+              Cash collected this shift by attendant. Includes check-ins, extensions, checkouts.
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="exportCashupCSVBtn"
+              class="rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium px-3 py-2 border border-slate-300"
+              onclick="alert('CSV export stub')">
+              Export CSV
+            </button>
+            <button id="printCashupBtn"
+              class="rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium px-3 py-2"
+              onclick="window.print()">
+              Print Cash-Up
+            </button>
+            <button id="pdfCashupBtn"
+              class="rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium px-3 py-2 border border-slate-300"
+              onclick="window.print()">
+              Save as PDF
+            </button>
+
+            <!-- WhatsApp Cash-Up -->
+            <button id="waCashupBtn"
+              class="rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-medium px-3 py-2"
+              onclick="shareCurrentShiftWhatsApp()">
+              WhatsApp Cash-Up
+            </button>
+
+            <!-- Close This Shift -->
+            <button id="closeShiftBtn"
+              class="rounded-lg bg-lime-600 hover:bg-lime-700 text-white text-xs font-medium px-3 py-2"
+              onclick="openShiftCloseModal()">
+              Close This Shift
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl card-shadow p-4 text-xs overflow-x-auto">
+          <div class="text-[11px] text-slate-500 leading-4 mb-3">
+            Below is based on <code>pendingQueue</code> transactions that happened today (local date), grouped by cashier.
+          </div>
+
+          <table class="w-full text-left text-xs text-slate-700 min-w-[500px]">
+            <thead class="text-[11px] text-slate-500 uppercase">
+              <tr>
+                <th class="py-2">Cashier / User</th>
+                <th class="py-2">Action</th>
+                <th class="py-2">Guest / Room</th>
+                <th class="py-2">Amount (K)</th>
+                <th class="py-2">Time</th>
+              </tr>
+            </thead>
+            <tbody id="cashupTableBody" class="divide-y divide-slate-200"></tbody>
+            <tfoot>
+              <tr class="bg-slate-50 text-[12px] font-semibold text-slate-800">
+                <td class="py-2" colspan="3">TOTAL THIS SHIFT</td>
+                <td class="py-2" id="cashupTotalCell">K0</td>
+                <td class="py-2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="mt-4 bg-white rounded-xl card-shadow p-4 text-xs overflow-x-auto">
+          <div class="text-sm font-semibold text-slate-800 mb-2">Totals by cashier</div>
+          <table class="w-full text-left text-xs text-slate-700 min-w-[350px]">
+            <thead class="text-[11px] text-slate-500 uppercase">
+              <tr>
+                <th class="py-2">Cashier</th>
+                <th class="py-2 text-right">Total Collected (K)</th>
+              </tr>
+            </thead>
+            <tbody id="cashupSummaryBody" class="divide-y divide-slate-200"></tbody>
+          </table>
+        </div>
+
+        <!-- Past Shift Closures table -->
+        <div class="mt-6 bg-white rounded-xl card-shadow p-4 text-xs overflow-x-auto managerOnly">
+          <div class="text-sm font-semibold text-slate-800 mb-2 flex items-center justify-between">
+            <span>Past Shift Closures</span>
+            <span class="text-[10px] text-slate-400 font-normal">Manager View</span>
+          </div>
+          <table class="w-full text-left text-xs text-slate-700 min-w-[500px]">
+            <thead class="text-[11px] text-slate-500 uppercase">
+              <tr>
+                <th class="py-2">Closed At</th>
+                <th class="py-2">Cashier</th>
+                <th class="py-2">Total (K)</th>
+                <th class="py-2">Cashier Sig</th>
+                <th class="py-2">Manager Sig</th>
+                <th class="py-2">Notes</th>
+              </tr>
+            </thead>
+            <tbody id="pastClosuresBody" class="divide-y divide-slate-200"></tbody>
+          </table>
+        </div>
+
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ================ MODALS ================ -->
+
+<!-- CHECK-IN MODAL -->
+<div id="checkInModal" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-4 card-shadow text-sm">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="font-semibold text-slate-800 text-base">Check In Guest</div>
+        <div class="text-[11px] text-slate-500 leading-3">
+          Discount applies to FIRST night only. If stay &gt;10 nights, 11th night is free.
+        </div>
+      </div>
+      <button class="text-slate-400 hover:text-slate-600 text-xs font-medium"
+        onclick="closeCheckInModal()">✕</button>
+    </div>
+
+    <div class="space-y-3">
+      <div>
+        <label class="block text-[12px] text-slate-700 font-medium">Room</label>
+        <input id="ci_roomId" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" readonly />
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Guest Name</label>
+          <input id="ci_guestName" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" placeholder="Full name" />
+        </div>
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Phone</label>
+          <input id="ci_guestPhone" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" placeholder="0977..." />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Nights</label>
+          <input id="ci_nights" type="number" min="1" value="1"
+            class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Discount 1st Night (K)</label>
+          <input id="ci_discount" type="number" min="0" value="0"
+            class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Paid Now (K)</label>
+          <input id="ci_paid" type="number" min="0" value="0"
+            class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+      </div>
+
+      <div class="bg-slate-50 rounded border border-slate-200 p-3 text-[12px] leading-4">
+        <div>1st Night (after discount): K<span id="ci_rateNight">0</span></div>
+        <div>Nights: <span id="ci_sumNights">1</span></div>
+        <div>Total: K<span id="ci_total">0</span></div>
+        <div>Balance After Payment: K<span id="ci_balance">0</span></div>
+        <div class="text-[10px] text-slate-500 mt-1 leading-3">Checkout: <span id="ci_checkoutTime">-</span></div>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 mt-4">
+      <button class="rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[12px] font-medium px-3 py-2"
+        onclick="closeCheckInModal()">Cancel</button>
+      <button class="rounded bg-indigo-600 hover:bg-indigo-700 text-white text-[12px] font-medium px-3 py-2"
+        onclick="confirmCheckIn()">Confirm Check In</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESERVE MODAL -->
+<div id="reserveModal" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-4 card-shadow text-sm">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="font-semibold text-slate-800 text-base">Reserve Room (Full 1st Night)</div>
+        <div class="text-[11px] text-slate-500 leading-3">
+          To reserve: Guest must pay the FULL cost of the 1st night (after discount).
+          Discount only applies to 1st night.
+          If stay &gt;10 nights, 11th night is free.
+        </div>
+      </div>
+      <button class="text-slate-400 hover:text-slate-600 text-xs font-medium"
+        onclick="closeReserveModal()">✕</button>
+    </div>
+
+    <div class="space-y-3">
+      <div>
+        <label class="block text-[12px] text-slate-700 font-medium">Room</label>
+        <input id="rs_roomId" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" readonly />
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Guest Name</label>
+          <input id="rs_guestName" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Phone</label>
+          <input id="rs_guestPhone" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Nights</label>
+          <input id="rs_nights" type="number" min="1" value="1"
+            class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Discount 1st Night (K)</label>
+          <input id="rs_discount" type="number" min="0" value="0"
+            class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Paying Now (K)</label>
+          <input id="rs_paid" type="number" min="0" value="0"
+            class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[12px] text-slate-700 font-medium">ETA Check-In (Date/Time)</label>
+        <input id="rs_eta" type="datetime-local"
+          class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+      </div>
+
+      <div class="bg-slate-50 rounded border border-slate-200 p-3 text-[12px] leading-4">
+        <div>1st Night (after discount): K<span id="rs_rateNight">0</span></div>
+        <div>Nights: <span id="rs_sumNights">1</span></div>
+        <div>Total Stay: K<span id="rs_total">0</span></div>
+        <div>Required To Reserve (1st Night): K<span id="rs_requiredDeposit">0</span></div>
+        <div>Paying Now: K<span id="rs_paidNowLabel">0</span></div>
+        <div class="text-[10px] text-slate-500 mt-1 leading-3">Checkout (est.): <span id="rs_checkoutTime">-</span></div>
+      </div>
+
+      <div id="rs_warning" class="hidden text-[11px] text-red-600 leading-4 bg-red-50 border border-red-200 rounded p-2">
+        Payment is below full 1st night. Reservation cannot be saved.
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 mt-4">
+      <button class="rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[12px] font-medium px-3 py-2"
+        onclick="closeReserveModal()">Cancel</button>
+      <button id="rs_confirmBtn"
+        class="rounded bg-amber-500 hover:bg-amber-600 text-white text-[12px] font-medium px-3 py-2"
+        onclick="confirmReserve()">Confirm Reserve</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXTEND STAY MODAL -->
+<div id="extendModal" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-4 card-shadow text-sm">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="font-semibold text-slate-800 text-base">Extend Stay</div>
+        <div class="text-[11px] text-slate-500 leading-3">Add nights to this active stay.</div>
+      </div>
+      <button class="text-slate-400 hover:text-slate-600 text-xs font-medium"
+        onclick="closeExtendModal()">✕</button>
+    </div>
+
+    <div class="space-y-3">
+      <div class="text-[12px] text-slate-700 leading-4">
+        <div>Guest: <span id="ex_guestName" class="font-medium text-slate-900"></span></div>
+        <div>Room: <span id="ex_roomId" class="font-medium text-slate-900"></span></div>
+        <div>Current Checkout: <span id="ex_currentCheckout"></span></div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Add Nights</label>
+          <input id="ex_addNights" type="number" min="1" value="1"
+            class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Extra Paid Now (K)</label>
+          <input id="ex_paid" type="number" min="0" value="0"
+            class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+      </div>
+
+      <div class="bg-slate-50 rounded border border-slate-200 p-3 text-[12px] leading-4">
+        <div>Rate/Night: K<span id="ex_rateNight">0</span></div>
+        <div>Added Nights: <span id="ex_sumNights">1</span></div>
+        <div>Extra Total: K<span id="ex_total">0</span></div>
+        <div>New Checkout: <span id="ex_newCheckoutTime">-</span></div>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 mt-4">
+      <button class="rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[12px] font-medium px-3 py-2"
+        onclick="closeExtendModal()">Cancel</button>
+      <button class="rounded bg-indigo-600 hover:bg-indigo-700 text-white text-[12px] font-medium px-3 py-2"
+        onclick="confirmExtend()">Confirm Extend</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHECKOUT MODAL -->
+<div id="checkoutModal" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-4 card-shadow text-sm">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="font-semibold text-slate-800 text-base">Checkout Guest</div>
+        <div class="text-[11px] text-slate-500 leading-3">Record payment, free the room.</div>
+      </div>
+      <button class="text-slate-400 hover:text-slate-600 text-xs font-medium"
+        onclick="closeCheckoutModal()">✕</button>
+    </div>
+
+    <div class="space-y-3">
+      <div class="text-[12px] text-slate-700 leading-4">
+        <div>Guest: <span id="co_guestName" class="font-medium text-slate-900"></span></div>
+        <div>Room: <span id="co_roomId" class="font-medium text-slate-900"></span></div>
+        <div>Balance Due Now: K<span id="co_balanceDue" class="font-medium text-red-600"></span></div>
+      </div>
+
+      <div>
+        <label class="block text-[12px] text-slate-700 font-medium">Amount Paid Now (K)</label>
+        <input id="co_paidNow" type="number" min="0" value="0"
+          class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+      </div>
+
+      <div class="bg-slate-50 rounded border border-slate-200 p-3 text-[12px] leading-4">
+        <div>Checkout Time: <span id="co_checkoutTime">-</span></div>
+        <div class="text-[10px] text-slate-500 leading-3">Room will become CLEANING first</div>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 mt-4">
+      <button class="rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[12px] font-medium px-3 py-2"
+        onclick="closeCheckoutModal()">Cancel</button>
+      <button class="rounded bg-red-600 hover:bg-red-700 text-white text-[12px] font-medium px-3 py-2"
+        onclick="confirmCheckout()">Confirm Checkout</button>
+    </div>
+  </div>
+</div>
+
+<!-- RECEIPT MODAL (only used for CHECKOUT now) -->
+<div id="receiptModal" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-4 card-shadow text-sm">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="font-semibold text-slate-800 text-base">Receipt</div>
+        <div class="text-[11px] text-slate-500 leading-3">
+          Guest copy • Lodge copy
+        </div>
+      </div>
+      <button class="text-slate-400 hover:text-slate-600 text-xs font-medium"
+        onclick="closeReceiptModal()">✕</button>
+    </div>
+
+    <div id="receiptContent" class="text-[12px] text-slate-700 leading-4 bg-white border border-slate-200 rounded p-3">
+    </div>
+
+    <div class="flex flex-col gap-2 mt-4">
+      <button class="rounded bg-slate-800 hover:bg-slate-700 text-white text-[12px] font-medium px-3 py-2 w-full"
+        onclick="printReceipt()">Print Receipt</button>
+
+      <button class="rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[12px] font-medium px-3 py-2 w-full border border-slate-300"
+        onclick="printReceiptPDF()">Save Receipt as PDF</button>
+
+      <button class="rounded bg-green-600 hover:bg-green-700 text-white text-[12px] font-medium px-3 py-2 w-full"
+        onclick="shareReceiptWhatsApp()">Share via WhatsApp</button>
+    </div>
+
+    <div class="text-[10px] text-slate-400 leading-4 text-center mt-3">
+      WhatsApp share opens a WA message addressed to the guest’s phone number.
+    </div>
+  </div>
+</div>
+
+<!-- ADD USER MODAL -->
+<div id="userModal" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-4 card-shadow text-sm">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="font-semibold text-slate-800 text-base">Add User</div>
+        <div class="text-[11px] text-slate-500 leading-3">Create a new attendant or manager.</div>
+      </div>
+      <button class="text-slate-400 hover:text-slate-600 text-xs font-medium"
+        onclick="closeUserModal()">✕</button>
+    </div>
+
+    <div class="space-y-3">
+      <div>
+        <label class="block text-[12px] text-slate-700 font-medium">Username</label>
+        <input id="um_username" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Password</label>
+          <input id="um_password" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Role</label>
+          <select id="um_role" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]">
+            <option value="attendant">Attendant</option>
+            <option value="manager">Manager</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 mt-4">
+      <button class="rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[12px] font-medium px-3 py-2"
+        onclick="closeUserModal()">Cancel</button>
+      <button class="rounded bg-indigo-600 hover:bg-indigo-700 text-white text-[12px] font-medium px-3 py-2"
+        onclick="confirmAddUser()">Add User</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD ROOM MODAL -->
+<div id="addRoomModal" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-4 card-shadow text-sm">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="font-semibold text-slate-800 text-base">Add New Room</div>
+        <div class="text-[11px] text-slate-500 leading-3">
+          New rooms default to <b>vacant</b> and appear immediately in POS & Rooms/Status.
+        </div>
+      </div>
+      <button class="text-slate-400 hover:text-slate-600 text-xs font-medium" onclick="closeAddRoomModal()">✕</button>
+    </div>
+
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Room ID/Number</label>
+          <input id="arm_roomId" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" placeholder="e.g., 103" />
+        </div>
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Max Guests</label>
+          <input id="arm_guests" type="number" min="1" value="2" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Type</label>
+          <select id="arm_type" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]">
+            <option>Low Budget</option>
+            <option>Standard</option>
+            <option>Executive</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[12px] text-slate-700 font-medium">Base Rate / Night (K)</label>
+          <input id="arm_rate" type="number" min="0" value="450" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[12px] text-slate-700 font-medium">Notes (optional)</label>
+        <textarea id="arm_notes" rows="2" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]" placeholder="Facing garden, twin beds, near reception..."></textarea>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 mt-4">
+      <button class="rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[12px] font-medium px-3 py-2" onclick="closeAddRoomModal()">Cancel</button>
+      <button class="rounded bg-indigo-600 hover:bg-indigo-700 text-white text-[12px] font-medium px-3 py-2" onclick="confirmAddRoom()">Save Room</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHIFT HANDOVER / CLOSE SHIFT MODAL -->
+<div id="shiftCloseModal" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-4 card-shadow text-sm">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="font-semibold text-slate-800 text-base">Shift Handover Report</div>
+        <div class="text-[11px] text-slate-500 leading-3">
+          Cash counted, signed, and handed over.
+        </div>
+      </div>
+      <button class="text-slate-400 hover:text-slate-600 text-xs font-medium"
+        onclick="closeShiftCloseModal()">✕</button>
+    </div>
+
+    <div class="space-y-3 text-[12px] text-slate-700 leading-4">
+      <div class="bg-slate-50 rounded border border-slate-200 p-3">
+        <div>Total Collected This Shift: K<span id="sc_totalK" class="font-semibold text-slate-900">0</span></div>
+        <div class="text-[10px] text-slate-500 leading-3">
+          Based on today's recorded payments.
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[12px] text-slate-700 font-medium">Cashier Signature / Name</label>
+        <input id="sc_cashierSig"
+          class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]"
+          placeholder="Attendant name / initials" />
+      </div>
+
+      <div>
+        <label class="block text-[12px] text-slate-700 font-medium">Manager Signature / Name</label>
+        <input id="sc_managerSig"
+          class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]"
+          placeholder="Manager on duty (optional now)" />
+      </div>
+
+      <div>
+        <label class="block text-[12px] text-slate-700 font-medium">Notes / Handover Comments</label>
+        <textarea id="sc_notes" rows="3"
+          class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[13px]"
+          placeholder="Float passed, keys handed over, any issues..."></textarea>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2 mt-4">
+      <button class="rounded bg-lime-600 hover:bg-lime-700 text-white text-[12px] font-medium px-3 py-2 w-full"
+        onclick="confirmShiftClose()">
+        Confirm & Save Closure
+      </button>
+
+      <button class="rounded bg-slate-800 hover:bg-slate-700 text-white text-[12px] font-medium px-3 py-2 w-full"
+        onclick="shareCurrentShiftWhatsApp()">
+        WhatsApp Cash-Up Summary
+      </button>
+    </div>
+
+    <div class="text-[10px] text-slate-400 leading-4 text-center mt-3">
+      Saved closures appear in Past Shift Closures.
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   STATE / STORAGE
+=========================================================*/
+const LS_KEY = "izaeasy_lodge_state_v6_shiftHandover";
+
+function buildSeedState(){
+  const now = new Date();
+  const tomorrow = new Date(Date.now()+24*3600*1000);
+  const etaIn2h = new Date(Date.now()+2*3600*1000);
+  const out2nights = new Date(Date.now()+2*24*3600*1000);
+
+  return {
+    currentUser: null,
+    rooms: [
+      {roomId:"101", type:"Low Budget", baseRate:450, status:"vacant", maxGuests:2, notes:"Budget single bed"},
+      {roomId:"102", type:"Low Budget", baseRate:450, status:"vacant", maxGuests:2, notes:"Budget twin bed"},
+      {roomId:"201", type:"Standard",   baseRate:700, status:"occupied", maxGuests:2, notes:""},
+      {roomId:"202", type:"Standard",   baseRate:700, status:"reserved", maxGuests:2, notes:"Reserved for 18:00"},
+      {roomId:"301", type:"Executive",  baseRate:1000,status:"cleaning", maxGuests:2, notes:"Needs fresh linen"},
+      {roomId:"302", type:"Executive",  baseRate:1000,status:"maintenance", maxGuests:2, notes:"AC repair"}
+    ],
+    stays: [
+      {
+        stayId:"STAY-1",
+        guestName:"John Banda",
+        guestPhone:"0977-000000",
+        roomId:"201",
+        roomType:"Standard",
+        baseRatePerNight:700,
+        discountKPerNight:0,
+        effectiveRatePerNight:700,
+        checkInDateTime: now.toISOString(),
+        plannedCheckoutDateTime: tomorrow.toISOString(),
+        actualCheckoutDateTime:"",
+        status:"checked-in",
+        nights:1,
+        totalAmountDue:700,
+        amountPaid:350,
+        balanceDue:350,
+        updatedAt: now.toISOString()
+      }
+    ],
+    reservations: [
+      {
+        reservationId:"RSV-1",
+        roomId:"202",
+        roomType:"Standard",
+        baseRatePerNight:700,
+        discountKPerNight:0,
+        effectiveRatePerNight:700,
+        nights:2,
+        plannedCheckInDateTime: etaIn2h.toISOString(),
+        plannedCheckoutDateTime: out2nights.toISOString(),
+        guestName:"Mwewa",
+        guestPhone:"0977-111111",
+        fullTotal:1400,
+        depositRequired:700,
+        depositPaid:700,
+        paymentMethod:"Cash",
+        status:"active",
+        createdBy:"manager",
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
+      }
+    ],
+    transactions: [
+      {
+        txnId:"TXN-1",
+        stayId:"STAY-1",
+        reservationId:null,
+        amount:350,
+        method:"Cash",
+        timestamp: now.toISOString(),
+        recordedByUser:"manager"
+      }
+    ],
+    users: [
+      {username:"manager",   password:"1234", role:"manager",   active:true},
+      {username:"attendant", password:"1234", role:"attendant", active:true}
+    ],
+
+    pendingQueue:[],
+    backupQueue:[],
+
+    // Shift closure history
+    shiftClosures:[
+      {
+        closureId:"CLOSE-SEED",
+        closedAt: now.toISOString(),
+        cashierUser:"manager",
+        totalK:350,
+        transactions:["TXN-1"],
+        notes:"Night shift sample (seed)",
+        signedByCashier:"",
+        signedByManager:""
+      }
+    ]
+  };
+}
+
+function resetDemoState(){
+  localStorage.removeItem(LS_KEY);
+  state = buildSeedState();
+  saveState();
+  location.reload();
+}
+
+function loadState() {
+  const raw = localStorage.getItem(LS_KEY);
+  if (!raw) {
+    const seed = buildSeedState();
+    localStorage.setItem(LS_KEY, JSON.stringify(seed));
+    return seed;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch(e){
+    console.warn("Corrupt state, rebuilding seed.", e);
+    const seed = buildSeedState();
+    localStorage.setItem(LS_KEY, JSON.stringify(seed));
+    return seed;
+  }
+}
+
+function saveState() {
+  localStorage.setItem(LS_KEY, JSON.stringify(state));
+}
+
+let state = loadState();
+if (!state.pendingQueue) state.pendingQueue = [];
+if (!state.backupQueue) state.backupQueue = [];
+if (!state.rooms) state.rooms = [];
+if (!state.shiftClosures) state.shiftClosures = [];
+
+/* =========================================================
+   UTILITIES
+=========================================================*/
+function nowISO() { return new Date().toISOString(); }
+function fmtDateShort(iso) {
+  if(!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleString();
+}
+function calcCheckoutFromNights(checkInISO, nights) {
+  const startMs = new Date(checkInISO).getTime();
+  const outMs = startMs + nights*24*3600*1000;
+  return new Date(outMs).toISOString();
+}
+function getRoomById(id) { return state.rooms.find(r=>r.roomId===id); }
+function getStayById(id) { return state.stays.find(s=>s.stayId===id); }
+function getReservationById(id) { return state.reservations.find(r=>r.reservationId===id); }
+
+function calcTotalsWithPerNightDiscount(baseRate, discountK, nights){
+  // Discount applies ONLY to first night.
+  // If nights > 10, guest gets 1 free night (11th free).
+  // Reservation requires FULL first night after discount.
+  const b = isNaN(baseRate)?0:baseRate;
+  const d = isNaN(discountK)?0:discountK;
+  const n = isNaN(nights)?1:nights;
+
+  let firstNightCost = b - d;
+  if(firstNightCost < 0) firstNightCost = 0;
+
+  let billableNights = n;
+  if(n > 10){
+    billableNights = n - 1; // 11th night is free
+  }
+
+  const remainingNights = Math.max(billableNights - 1, 0);
+  const remainingCost = remainingNights * b;
+  const fullTotal = firstNightCost + remainingCost;
+
+  return {
+    firstNightCost: Math.round(firstNightCost),
+    effectivePerNight: Math.round(firstNightCost),
+    fullTotal: Math.round(fullTotal)
+  };
+}
+
+function todayDateKey(d = new Date()) {
+  const yr = d.getFullYear();
+  const mo = String(d.getMonth()+1).padStart(2,"0");
+  const da = String(d.getDate()).padStart(2,"0");
+  return `${yr}-${mo}-${da}`;
+}
+
+/* =========================================================
+   SHIFT CLOSURE / HANDOVER HELPERS
+=========================================================*/
+function calcCurrentShiftTotal(){
+  const todayKey = todayDateKey();
+  let totalK = 0;
+  state.pendingQueue.forEach(tx => {
+    if(tx.type==="payment" && tx.timestamp){
+      const k = todayDateKey(new Date(tx.timestamp));
+      if(k===todayKey){
+        totalK += Number(tx.amount || 0);
+      }
+    }
+  });
+  return totalK;
+}
+
+function buildShiftSummaryText(){
+  const todayKeyStr = todayDateKey();
+  const username = state.currentUser ? state.currentUser.username : "(unknown)";
+  let lines = [];
+  let totalShift = 0;
+
+  lines.push("IzaEasy Lodge - Shift Cash-Up");
+  lines.push("Date: " + todayKeyStr);
+  lines.push("Attendant: " + username);
+  lines.push("--------------------");
+
+  state.pendingQueue.forEach(tx => {
+    if(tx.type==="payment" && tx.timestamp){
+      const k = todayDateKey(new Date(tx.timestamp));
+      if(k===todayKeyStr){
+        totalShift += Number(tx.amount || 0);
+        lines.push(
+          (tx.roomId ? ("Room " + tx.roomId + " - ") : "") +
+          "K" + (tx.amount || 0) +
+          " (" + (tx.action || "payment") + ")"
+        );
+      }
+    }
+  });
+
+  lines.push("--------------------");
+  lines.push("TOTAL: K" + totalShift);
+
+  return lines.join("\n");
+}
+
+function shareCurrentShiftWhatsApp(){
+  const msg = encodeURIComponent(buildShiftSummaryText());
+  const waUrl = "https://wa.me/?text=" + msg;
+  window.open(waUrl, "_blank");
+}
+
+function openShiftCloseModal(){
+  const total = calcCurrentShiftTotal();
+  document.getElementById("sc_totalK").textContent = total;
+  document.getElementById("shiftCloseModal").classList.remove("hidden");
+}
+
+function closeShiftCloseModal(){
+  document.getElementById("shiftCloseModal").classList.add("hidden");
+}
+
+function performShiftClosure(closureData){
+  const nowTs = nowISO();
+  const todayKeyStr = todayDateKey();
+
+  const todaysTxns = state.pendingQueue.filter(tx => {
+    if(!tx.timestamp) return false;
+    if(tx.type!=="payment") return false;
+    const k = todayDateKey(new Date(tx.timestamp));
+    return (k === todayKeyStr);
+  });
+
+  let totalK = 0;
+  const txnIds = [];
+  todaysTxns.forEach(t => {
+    totalK += Number(t.amount || 0);
+    txnIds.push(t.txnId || ("TXN-" + Date.now()));
+  });
+
+  const closureObj = {
+    closureId: "CLOSE-" + Date.now(),
+    closedAt: nowTs,
+    cashierUser: state.currentUser ? state.currentUser.username : "",
+    totalK: totalK,
+    transactions: txnIds,
+    notes: closureData.notes || "",
+    signedByCashier: closureData.cashierSig || "",
+    signedByManager: closureData.managerSig || ""
+  };
+
+  state.shiftClosures.push(closureObj);
+
+  state.pendingQueue.push({
+    queueId: "Q-" + Date.now(),
+    type: "shiftClosure",
+    data: closureObj,
+    timestamp: nowTs,
+    synced: false
+  });
+
+  saveState();
+  renderPendingCount();
+  renderPastClosuresTable();
+}
+
+function confirmShiftClose(){
+  const cashierSig = document.getElementById("sc_cashierSig").value.trim();
+  const managerSig = document.getElementById("sc_managerSig").value.trim();
+  const notes = document.getElementById("sc_notes").value.trim();
+
+  performShiftClosure({
+    cashierSig,
+    managerSig,
+    notes
+  });
+
+  closeShiftCloseModal();
+  alert("Shift closed & archived.");
+}
+
+/* =========================================================
+   SYNC / BACKUP / PWA
+=========================================================*/
+function attemptSync() {
+  console.log("Attempting sync... pendingQueue: ", state.pendingQueue);
+  state.pendingQueue.forEach(item => { item.synced = true; });
+  saveState();
+  renderPendingCount();
+  renderBackupCount();
+  alert("Sync simulated.\nAll pending actions marked synced.");
+}
+
+function downloadBackupJSON(){
+  const dataStr = JSON.stringify(state, null, 2);
+  const blob = new Blob([dataStr], {type:"application/json;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "IzaEasy_backup_"+todayDateKey()+".json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function queueCloudBackup(){
+  const snapshot = {
+    at: nowISO(),
+    dateKey: todayDateKey(),
+    data: JSON.parse(JSON.stringify(state))
+  };
+  state.backupQueue.push(snapshot);
+  saveState();
+  renderBackupCount();
+  alert("Backup snapshot queued for cloud upload later.");
+}
+
+let deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", (e)=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+});
+function installApp(){
+  if(!deferredInstallPrompt){
+    alert("Install prompt not available yet.\nTip: Open this file via http:// on phone/PC to enable full install.");
+    return;
+  }
+  deferredInstallPrompt.prompt();
+}
+
+
+/* =========================================================
+   AUTH / ROLE
+=========================================================*/
+let failedLoginCount = 0;
+function loginUser(username, password) {
+  const u = state.users.find(x=>
+    x.username===username &&
+    x.password===password &&
+    x.active!==false
+  );
+  if(!u) return null;
+  state.currentUser = { username: u.username, role: u.role };
+  saveState();
+  return state.currentUser;
+}
+function logoutUser() {
+  state.currentUser = null;
+  saveState();
+  showLogin();
+}
+function requireRole(role) {
+  if(!state.currentUser) return false;
+  return state.currentUser.role===role;
+}
+
+/* =========================================================
+   NAV + RENDER ROOT
+=========================================================*/
+const loginScreen = document.getElementById("loginScreen");
+const mainUI = document.getElementById("mainUI");
+const sidebarBtns = document.querySelectorAll(".sidebarBtn");
+sidebarBtns.forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const sectionId = btn.getAttribute("data-section");
+    showSection(sectionId);
+  });
+});
+
+function showSection(id) {
+  const sections = [
+    "dashboardSection",
+    "posSection",
+    "reservationsSection",
+    "roomsSection",
+    "ratesSection",
+    "usersSection",
+    "settingsSection",
+    "nightAuditSection",
+    "cashupSection"
+  ];
+  sections.forEach(secId=>{
+    const el = document.getElementById(secId);
+    if(el) el.classList.add("hidden");
+  });
+  renderAll();
+  if(id === "nightAuditSection"){ renderNightAudit(); }
+  if(id === "cashupSection"){ renderCashup(); }
+  const tgt = document.getElementById(id);
+  if(tgt) tgt.classList.remove("hidden");
+}
+
+function showLogin() {
+  loginScreen.classList.remove("hidden");
+  mainUI.classList.add("hidden");
+}
+function showAppForUser() {
+  loginScreen.classList.add("hidden");
+  mainUI.classList.remove("hidden");
+
+  const isManager = requireRole("manager");
+  document.querySelectorAll(".managerOnly").forEach(el=>{
+    if(isManager){ el.classList.remove("hidden"); } else { el.classList.add("hidden"); }
+  });
+  document.querySelectorAll(".bothRoles").forEach(el=>{
+    el.classList.remove("hidden");
+  });
+
+  if(isManager){
+    showSection("dashboardSection");
+  } else {
+    showSection("posSection");
+  }
+}
+
+/* =========================================================
+   RENDER HELPERS
+=========================================================*/
+function renderOnlineStatus() {
+  const badge = document.getElementById("onlineStatusBadge");
+  if(navigator.onLine){
+    badge.textContent = "Online";
+    badge.className="inline-block text-[10px] mt-2 px-2 py-0.5 rounded bg-emerald-600 text-white";
+  } else {
+    badge.textContent = "Offline";
+    badge.className="inline-block text-[10px] mt-2 px-2 py-0.5 rounded bg-slate-700 text-slate-300";
+  }
+}
+function renderPendingCount() {
+  document.getElementById("pendingCount").textContent =
+    state.pendingQueue.filter(q=>!q.synced).length;
+}
+function renderBackupCount() {
+  document.getElementById("backupCount").textContent = state.backupQueue.length;
+}
+function renderCurrentUserInfo() {
+  const el = document.getElementById("currentUserInfo");
+  if(!state.currentUser) { el.textContent=""; return; }
+  el.innerHTML = `
+    <div><span class="text-slate-300">${state.currentUser.username}</span> 
+    <span class="text-[10px] px-1 py-0.5 rounded bg-slate-800 text-slate-200 ml-1">${state.currentUser.role}</span></div>
+  `;
+}
+
+function renderDashboard() {
+  const occupiedCount = state.rooms.filter(r=>r.status==="occupied").length;
+  const vacantCount = state.rooms.filter(r=>r.status==="vacant").length;
+  const reservedActive = state.reservations.filter(r=>r.status==="active").length;
+
+  const today = new Date();
+  const startDay = new Date(today.getFullYear(),today.getMonth(),today.getDate()).getTime();
+  const endDay = startDay + 24*3600*1000;
+  const dueCheckout = state.stays.filter(st=>{
+    if(st.status!=="checked-in") return false;
+    const out = new Date(st.plannedCheckoutDateTime).getTime();
+    return (out>=startDay && out<endDay);
+  }).length;
+
+  document.getElementById("kpiOccupied").textContent = occupiedCount;
+  document.getElementById("kpiVacant").textContent = vacantCount;
+  document.getElementById("kpiDueCheckout").textContent = dueCheckout;
+  document.getElementById("kpiArrivals").textContent = reservedActive;
+
+  const checkoutList = document.getElementById("checkoutList");
+  checkoutList.innerHTML = "";
+  state.stays.forEach(st=>{
+    if(st.status==="checked-in"){
+      const outT = new Date(st.plannedCheckoutDateTime).getTime();
+      if(outT>=startDay && outT<endDay){
+        const row = document.createElement("div");
+        row.className="bg-slate-50 rounded border border-slate-200 p-2";
+        row.innerHTML=`
+          <div class="font-medium text-slate-800">${st.guestName}</div>
+          <div class="text-slate-600 text-[11px] leading-4">
+            Room ${st.roomId} · Checkout ${fmtDateShort(st.plannedCheckoutDateTime)}
+          </div>`;
+        checkoutList.appendChild(row);
+      }
+    }
+  });
+
+  const arrivalList = document.getElementById("arrivalList");
+  arrivalList.innerHTML="";
+  state.reservations.forEach(rs=>{
+    if(rs.status==="active"){
+      const row = document.createElement("div");
+      row.className="bg-amber-50 rounded border border-amber-200 p-2";
+      row.innerHTML=`
+        <div class="font-medium text-slate-800">${rs.guestName}</div>
+        <div class="text-slate-600 text-[11px] leading-4">
+          Room ${rs.roomId} (${rs.roomType}) · ETA ${fmtDateShort(rs.plannedCheckInDateTime)}<br/>
+          Paid K${rs.depositPaid} / Required K${rs.depositRequired}
+        </div>`;
+      arrivalList.appendChild(row);
+    }
+  });
+
+  document.getElementById("todayDateLabel").textContent = new Date().toLocaleDateString();
+}
+
+function roomStatusBadge(status){
+  let cls="badge-vacant";
+  let label="Vacant";
+  if(status==="reserved"){cls="badge-reserved";label="Reserved";}
+  if(status==="occupied"){cls="badge-occupied";label="Occupied";}
+  if(status==="cleaning"){cls="badge-cleaning";label="Cleaning";}
+  if(status==="maintenance"){cls="badge-maintenance";label="Maint";}
+  return `<span class="inline-block text-[10px] px-2 py-0.5 rounded ${cls}">${label}</span>`;
+}
+
+function groupRoomsByType(){
+  const groups = {};
+  state.rooms.forEach(r=>{
+    if(!groups[r.type]) groups[r.type]=[];
+    groups[r.type].push(r);
+  });
+  Object.values(groups).forEach(arr=>{
+    arr.sort((a,b)=>{
+      const na=parseInt(a.roomId)||0;
+      const nb=parseInt(b.roomId)||0;
+      return na-nb;
+    });
+  });
+  return groups;
+}
+
+function renderPosRooms() {
+  const wrap = document.getElementById("posRoomsWrapper");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  const groups = groupRoomsByType();
+  const typeOrder = ["Low Budget","Standard","Executive"];
+
+  typeOrder.forEach(cat => {
+    if (!groups[cat] || groups[cat].length === 0) return;
+
+    const vacantCount = groups[cat].filter(r => r.status === "vacant").length;
+
+    const block = document.createElement("div");
+    block.className = "bg-white rounded-xl card-shadow p-4";
+
+    block.innerHTML = `
+      <div class="text-sm font-semibold text-slate-800 mb-3 flex items-center justify-between flex-wrap gap-2">
+        <span>${cat} Rooms
+          <span class="text-[10px] font-normal text-slate-500 ml-1">(${vacantCount} vacant)</span>
+        </span>
+        <span class="text-[10px] text-slate-400 font-normal">Tap to Check In / Reserve / Checkout</span>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-cat="${cat}"></div>
+    `;
+
+    const grid = block.querySelector("div.grid");
+
+    groups[cat].forEach(r => {
+      const div = document.createElement("div");
+      div.className = "bg-white border border-slate-200 rounded-lg p-3 text-xs flex flex-col justify-between";
+
+      div.innerHTML = `
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="text-slate-900 font-semibold text-base leading-5">Room ${r.roomId}</div>
+            <div class="text-[11px] text-slate-500 leading-4">
+              ${r.type} · K${r.baseRate}/night · ${r.maxGuests} pax
+            </div>
+            <div class="text-[11px] text-slate-400 leading-4">${r.notes || ""}</div>
+          </div>
+          <div>${roomStatusBadge(r.status)}</div>
+        </div>
+
+        <div class="mt-3 flex flex-wrap gap-2 text-[11px]">
+  ${r.status==="vacant" ? `
+    <button class="rounded bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-2 py-1"
+      onclick="openCheckInModal('${r.roomId}')">Check In</button>
+    <button class="rounded bg-amber-500 hover:bg-amber-600 text-white font-medium px-2 py-1"
+      onclick="openReserveModal('${r.roomId}')">Reserve</button>
+    <button class="rounded bg-slate-700 hover:bg-slate-800 text-white font-medium px-2 py-1"
+      onclick="toggleMaintenance('${r.roomId}')">Maintenance</button>
+  ` : ""}
+
+  ${r.status==="occupied" ? `
+    <button class="rounded bg-blue-600 hover:bg-blue-700 text-white font-medium px-2 py-1"
+      onclick="startCleaning('${r.roomId}')">Start Cleaning</button>
+    <button class="rounded bg-sky-600 hover:bg-sky-700 text-white font-medium px-2 py-1"
+      onclick="openExtendModal('${r.roomId}')">Extend</button>
+    <button class="rounded bg-red-600 hover:bg-red-700 text-white font-medium px-2 py-1"
+      onclick="openCheckoutModal('${r.roomId}')">Checkout</button>
+  ` : ""}
+
+  ${r.status==="reserved" ? `
+    <button class="rounded bg-green-600 hover:bg-green-700 text-white font-medium px-2 py-1"
+      onclick="openCheckInModal('${r.roomId}', true)">Check In</button>
+    <button class="rounded bg-blue-600 hover:bg-blue-700 text-white font-medium px-2 py-1"
+      onclick="startCleaning('${r.roomId}')">Start Cleaning</button>
+  ` : ""}
+
+  ${r.status==="cleaning" ? `
+    <button class="rounded bg-blue-600 hover:bg-blue-700 text-white font-medium px-2 py-1"
+      onclick="markRoomReady('${r.roomId}')">Mark Ready</button>
+  ` : ""}
+
+  ${r.status==="maintenance" ? `
+    <button class="rounded bg-slate-700 hover:bg-slate-800 text-white font-medium px-2 py-1"
+      onclick="toggleMaintenance('${r.roomId}')">Back from Maint</button>
+  ` : ""}
+</div>
+      `;
+      grid.appendChild(div);
+    });
+
+    wrap.appendChild(block);
+  });
+}
+
+function renderActiveStays() {
+  const wrap = document.getElementById("activeStaysList");
+  wrap.innerHTML="";
+  state.stays
+    .filter(s=>s.status==="checked-in")
+    .forEach(st=>{
+      const row=document.createElement("div");
+      row.className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between text-[12px]";
+
+      const savedDiscount = st.discountKPerNight || 0;
+
+      row.innerHTML=`
+        <div class="mb-2 sm:mb-0">
+          <div class="font-medium text-slate-800">${st.guestName}</div>
+          <div class="text-slate-600 text-[11px] leading-4">
+            Room ${st.roomId} · ${st.roomType}<br/>
+            Rate/Night (1st night after discount): K${st.effectiveRatePerNight}
+            <span class="text-slate-400">(K${savedDiscount} off 1st night)</span><br/>
+            Out: ${fmtDateShort(st.plannedCheckoutDateTime)}<br/>
+            Bal: K${st.balanceDue}
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button class="rounded bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-medium px-2 py-1"
+            onclick="openExtendModal('${st.stayId}')">Extend Stay</button>
+          <button class="rounded bg-red-600 hover:bg-red-700 text-white text-[11px] font-medium px-2 py-1"
+            onclick="openCheckoutModal('${st.stayId}')">Checkout</button>
+        </div>
+      `;
+      wrap.appendChild(row);
+    });
+}
+
+function renderReservationsList() {
+  const wrap = document.getElementById("reservationsList");
+  wrap.innerHTML="";
+  const isManager = requireRole("manager");
+
+  state.reservations
+    .filter(r=>r.status==="active")
+    .forEach(rs=>{
+      const row=document.createElement("div");
+      row.className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between text-[12px]";
+
+      const savedDiscount = rs.discountKPerNight || 0;
+
+      let managerBtns = "";
+      if(isManager){
+        managerBtns = `<button class="rounded bg-red-600 hover:bg-red-700 text-white text-[11px] font-medium px-2 py-1"
+          onclick="cancelReservation('${rs.reservationId}')">Cancel</button>`;
+      }
+
+      row.innerHTML=`
+        <div class="mb-2 sm:mb-0">
+          <div class="font-medium text-slate-800">${rs.guestName}</div>
+          <div class="text-slate-600 text-[11px] leading-4">
+            Room ${rs.roomId} · ${rs.roomType}<br/>
+            1st Night After Discount: K${rs.effectiveRatePerNight}
+            <span class="text-slate-400">(K${savedDiscount} off 1st night)</span><br/>
+            Nights: ${rs.nights} · ETA: ${fmtDateShort(rs.plannedCheckInDateTime)}<br/>
+            Paid: K${rs.depositPaid} / Req: K${rs.depositRequired}<br/>
+            Total Stay: K${rs.fullTotal}
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button class="rounded bg-green-600 hover:bg-green-700 text-white text-[11px] font-medium px-2 py-1"
+            onclick="checkInFromReservation('${rs.reservationId}')">Check In Now</button>
+          ${managerBtns}
+        </div>
+      `;
+      wrap.appendChild(row);
+    });
+}
+
+function renderManagerRooms() {
+  const wrap = document.getElementById("managerRoomsWrapper");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  const groups = groupRoomsByType();
+  const typeOrder = ["Low Budget","Standard","Executive"];
+
+  typeOrder.forEach(cat => {
+    if (!groups[cat] || groups[cat].length === 0) return;
+
+    const vacantCount = groups[cat].filter(r => r.status === "vacant").length;
+
+    const block = document.createElement("div");
+    block.className = "bg-white rounded-xl card-shadow p-4";
+
+    block.innerHTML = `
+      <div class="text-sm font-semibold text-slate-800 mb-3 flex items-center justify-between flex-wrap gap-2">
+        <span>${cat} Rooms
+          <span class="text-[10px] font-normal text-slate-500 ml-1">(${vacantCount} vacant)</span>
+        </span>
+        <span class="text-[10px] text-slate-400 font-normal">Maintenance / Ready control</span>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-cat="${cat}"></div>
+    `;
+
+    const grid = block.querySelector("div.grid");
+
+    groups[cat].forEach(r => {
+      const div = document.createElement("div");
+      div.className = "bg-white rounded-xl card-shadow p-4 text-sm";
+
+      div.innerHTML = `
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="text-slate-900 font-semibold text-base leading-5">Room ${r.roomId}</div>
+            <div class="text-[11px] text-slate-500 leading-4">
+              ${r.type} · K${r.baseRate}/night, ${r.maxGuests} pax
+            </div>
+            <div class="text-[11px] text-slate-500 leading-4">${r.notes || ""}</div>
+          </div>
+          <div>${roomStatusBadge(r.status)}</div>
+        </div>
+
+        <div class="mt-3 flex flex-wrap gap-2 text-[11px]">
+  ${!(r.status==="occupied" || r.status==="reserved") ? `
+    <button class="rounded bg-slate-700 hover:bg-slate-800 text-white font-medium px-2 py-1"
+      onclick="toggleMaintenance('${r.roomId}')">Toggle Maint</button>
+  ` : ``}
+
+  ${r.status!=="cleaning" ? `
+    <button class="rounded bg-blue-600 hover:bg-blue-700 text-white font-medium px-2 py-1"
+      onclick="startCleaning('${r.roomId}')">Start Cleaning</button>
+  ` : ``}
+
+  ${r.status==="cleaning" ? `
+    <button class="rounded bg-blue-600 hover:bg-blue-700 text-white font-medium px-2 py-1"
+      onclick="markRoomReady('${r.roomId}')">Mark Ready</button>
+  ` : ``}
+
+  ${r.status==="reserved" ? `
+    <button class="rounded bg-green-600 hover:bg-green-700 text-white font-medium px-2 py-1"
+      onclick="openCheckInModal('${r.roomId}', true)">Check In</button>
+  ` : ``}
+</div>
+      `;
+      grid.appendChild(div);
+    });
+
+    wrap.appendChild(block);
+  });
+}
+
+function renderRatesTable() {
+  const wrap = document.getElementById("ratesTableBody");
+  wrap.innerHTML="";
+  state.rooms.forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td class="py-2 align-top font-medium text-slate-800">${r.roomId}</td>
+      <td class="py-2 align-top text-[12px] text-slate-600">${r.type}</td>
+      <td class="py-2 align-top">
+        <input type="number" min="0" value="${r.baseRate}"
+          class="w-20 rounded border border-slate-300 px-2 py-1 text-[12px]" 
+          onchange="updateBaseRate('${r.roomId}', this.value)" />
+      </td>
+      <td class="py-2 align-top text-right text-[11px] text-slate-500">
+        ${r.maxGuests} pax
+      </td>
+    `;
+    wrap.appendChild(tr);
+  });
+}
+
+function renderUsersTable(){
+  const wrap = document.getElementById("usersTableBody");
+  wrap.innerHTML="";
+  state.users.forEach(u=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td class="py-2 align-top font-medium text-slate-800">${u.username}</td>
+      <td class="py-2 align-top text-[12px] text-slate-600">${u.role}</td>
+      <td class="py-2 align-top text-[12px]">${u.active!==false?"Active":"Disabled"}</td>
+      <td class="py-2 align-top text-right text-[11px]">
+        <button class="rounded bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-2 py-1"
+          onclick="toggleUserActive('${u.username}')">${u.active!==false?"Disable":"Enable"}</button>
+      </td>
+    `;
+    wrap.appendChild(tr);
+  });
+}
+
+function renderNightAudit() {
+  const inWrap = document.getElementById("nightAuditInhouse");
+  inWrap.innerHTML="";
+  state.stays
+    .filter(st=>st.status==="checked-in")
+    .forEach(st=>{
+      const row=document.createElement("div");
+      row.className="py-3 text-[12px]";
+      row.innerHTML=`
+        <div class="font-medium text-slate-800">${st.guestName}</div>
+        <div class="text-slate-600 text-[11px] leading-4">
+          Room ${st.roomId} (${st.roomType})<br/>
+          Bal: K${st.balanceDue} · Checkout ${fmtDateShort(st.plannedCheckoutDateTime)}
+        </div>`;
+      inWrap.appendChild(row);
+    });
+
+  const dueWrap = document.getElementById("nightAuditDue");
+  dueWrap.innerHTML="";
+  const nowMs = Date.now();
+  const next24 = nowMs + 24*3600*1000;
+  state.stays
+    .filter(st=>st.status==="checked-in")
+    .forEach(st=>{
+      const outT = new Date(st.plannedCheckoutDateTime).getTime();
+      if(outT<next24){
+        const row=document.createElement("div");
+        row.className="py-3 text-[12px]";
+        row.innerHTML=`
+          <div class="font-medium text-slate-800">${st.guestName}</div>
+          <div class="text-slate-600 text-[11px] leading-4">
+            Room ${st.roomId} (${st.roomType})<br/>
+            Checkout ${fmtDateShort(st.plannedCheckoutDateTime)} · Bal K${st.balanceDue}
+          </div>`;
+        dueWrap.appendChild(row);
+      }
+    });
+
+  const balWrap = document.getElementById("nightAuditBalances");
+  balWrap.innerHTML="";
+  state.stays
+    .filter(st=>st.status==="checked-in" && st.balanceDue>0)
+    .forEach(st=>{
+      const row=document.createElement("div");
+      row.className="py-3 text-[12px]";
+      row.innerHTML=`
+        <div class="font-medium text-slate-800">${st.guestName}</div>
+        <div class="text-slate-600 text-[11px] leading-4">
+          Room ${st.roomId} (${st.roomType}) · Owes K${st.balanceDue}<br/>
+          Checkout ${fmtDateShort(st.plannedCheckoutDateTime)}
+        </div>`;
+      balWrap.appendChild(row);
+    });
+}
+
+/* =========================================================
+   RENDER CASH-UP + PAST CLOSURES
+=========================================================*/
+function renderCashup(){
+  const tbody = document.getElementById("cashupTableBody");
+  const sumBody = document.getElementById("cashupSummaryBody");
+  const totalCell = document.getElementById("cashupTotalCell");
+
+  if(!tbody || !sumBody || !totalCell) return;
+
+  tbody.innerHTML="";
+  sumBody.innerHTML="";
+  totalCell.textContent="K0";
+
+  const todayKeyStr = todayDateKey();
+  const rows = [];
+  const byCashier = {};
+  let shiftTotal = 0;
+
+  state.pendingQueue.forEach(item=>{
+    if(item.type==="payment" && item.timestamp){
+      const k = todayDateKey(new Date(item.timestamp));
+      if(k===todayKeyStr){
+        const cashier = item.recordedByUser || "(unknown)";
+        if(!byCashier[cashier]) byCashier[cashier]=0;
+        byCashier[cashier]+=Number(item.amount||0);
+
+        shiftTotal += Number(item.amount||0);
+
+        rows.push({
+          cashier,
+          action:item.action||"payment",
+          guest:item.guestName||"",
+          room:item.roomId||"",
+          amount:item.amount||0,
+          ts:item.timestamp
+        });
+      }
+    }
+  });
+
+  rows.forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td class="py-2 align-top">${r.cashier}</td>
+      <td class="py-2 align-top">${r.action}</td>
+      <td class="py-2 align-top">${r.guest} ${r.room?("· Room "+r.room):""}</td>
+      <td class="py-2 align-top font-semibold text-slate-900">K${r.amount}</td>
+      <td class="py-2 align-top text-[11px] text-slate-500">${fmtDateShort(r.ts)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  totalCell.textContent="K"+shiftTotal;
+
+  Object.keys(byCashier).forEach(name=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td class="py-2 align-top font-medium text-slate-800">${name}</td>
+      <td class="py-2 align-top text-right font-semibold text-slate-900">K${byCashier[name]}</td>
+    `;
+    sumBody.appendChild(tr);
+  });
+
+  renderPastClosuresTable();
+}
+
+function renderPastClosuresTable(){
+  const body = document.getElementById("pastClosuresBody");
+  if(!body) return;
+  body.innerHTML = "";
+
+  const closures = [...state.shiftClosures].sort((a,b)=>{
+    return new Date(b.closedAt) - new Date(a.closedAt);
+  });
+
+  closures.forEach(cl=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="py-2 align-top">${fmtDateShort(cl.closedAt)}</td>
+      <td class="py-2 align-top">${cl.cashierUser || "-"}</td>
+      <td class="py-2 align-top font-semibold text-slate-900">K${cl.totalK || 0}</td>
+      <td class="py-2 align-top text-[11px]">${cl.signedByCashier || ""}</td>
+      <td class="py-2 align-top text-[11px]">${cl.signedByManager || ""}</td>
+      <td class="py-2 align-top text-[11px] max-w-[200px] break-words">${cl.notes || ""}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+/* =========================================================
+   DATA MUTATION HELPERS (CHECKIN / RESERVE / EXTEND / CHECKOUT / USERS / ROOMS)
+=========================================================*/
+function pushPaymentToQueue({action,roomId,guestName,amount}){
+  const entry = {
+    queueId: "Q-" + Date.now() + "-" + Math.floor(Math.random()*9999),
+    type: "payment",
+    action: action,
+    roomId: roomId || "",
+    guestName: guestName || "",
+    amount: Number(amount||0),
+    timestamp: nowISO(),
+    synced: false,
+    recordedByUser: state.currentUser ? state.currentUser.username : "(unknown)",
+    txnId: "TXN-" + Date.now() + "-" + Math.floor(Math.random()*9999)
+  };
+  state.pendingQueue.push(entry);
+  saveState();
+  renderPendingCount();
+}
+
+// Start cleaning: remember previous status so we can restore it after cleaning
+function startCleaning(roomId){
+  const r = getRoomById(roomId);
+  if(!r) return;
+  if(r.status==="cleaning"){
+    alert("Already marked for cleaning.");
+    return;
+  }
+  r.prevStatus = r.status; // occupied/reserved/vacant/maintenance
+  r.status = "cleaning";
+  saveState();
+  renderAll();
+}
+function markRoomReady(roomId){
+  const r = getRoomById(roomId);
+  if(!r) return;
+  if(r.status==="cleaning"){
+    if(r.prevStatus){
+      r.status = r.prevStatus;
+      delete r.prevStatus;
+    } else {
+      r.status = "vacant";
+    }
+  }
+  saveState();
+  renderAll();
+}
+function toggleMaintenance(roomId){
+  const r = getRoomById(roomId);
+  if(!r) return;
+  if(r.status==="occupied" || r.status==="reserved"){
+    alert("This room is currently " + r.status + ". You can only put it to Cleaning, not Maintenance.");
+    return;
+  }
+  if(r.status==="maintenance"){
+    r.status = "vacant";
+  } else {
+    r.status = "maintenance";
+  }
+  saveState();
+  renderAll();
+}
+
+function updateBaseRate(roomId,newRate){
+  const r=getRoomById(roomId);
+  if(!r) return;
+  r.baseRate = Number(newRate||0);
+  saveState();
+  renderRatesTable();
+  renderPosRooms();
+  renderManagerRooms();
+}
+
+function toggleUserActive(username){
+  const u=state.users.find(x=>x.username===username);
+  if(!u) return;
+  u.active = !u.active;
+  saveState();
+  renderUsersTable();
+}
+function confirmAddUser(){
+  const name=document.getElementById("um_username").value.trim();
+  const pass=document.getElementById("um_password").value.trim();
+  const role=document.getElementById("um_role").value;
+  if(!name||!pass){
+    alert("Username & password required.");
+    return;
+  }
+  state.users.push({
+    username:name,
+    password:pass,
+    role:role,
+    active:true
+  });
+  saveState();
+  closeUserModal();
+  renderUsersTable();
+}
+
+// ===== Add Room helpers =====
+function getDefaultRateByType(t){
+  if(t==="Low Budget") return 450;
+  if(t==="Standard") return 700;
+  if(t==="Executive") return 1000;
+  return 0;
+}
+function openAddRoomModal(){
+  const sel = document.getElementById("arm_type");
+  const rate = document.getElementById("arm_rate");
+  const guests = document.getElementById("arm_guests");
+  const rid = document.getElementById("arm_roomId");
+  const notes = document.getElementById("arm_notes");
+
+  if(sel) sel.value = "Low Budget";
+  if(rate) rate.value = getDefaultRateByType("Low Budget");
+  if(guests) guests.value = 2;
+  if(rid) rid.value = "";
+  if(notes) notes.value = "";
+
+  // auto-fill rate when type changes (only if current rate equals previous default)
+  if(sel){
+    sel.onchange = () => {
+      const def = getDefaultRateByType(sel.value);
+      const current = Number(rate.value||0);
+      // If the user hasn't manually edited away from defaults for other types, just set default.
+      // Simpler: always set to default on type change.
+      rate.value = def;
+    };
+  }
+
+  document.getElementById("addRoomModal").classList.remove("hidden");
+}
+function closeAddRoomModal(){
+  document.getElementById("addRoomModal").classList.add("hidden");
+}
+function confirmAddRoom(){
+  const rid = (document.getElementById("arm_roomId").value||"").trim();
+  const type = document.getElementById("arm_type").value;
+  const rate = Number(document.getElementById("arm_rate").value||0);
+  const pax = Number(document.getElementById("arm_guests").value||1);
+  const notes = (document.getElementById("arm_notes").value||"").trim();
+
+  if(!rid){
+    alert("Room ID/Number is required.");
+    return;
+  }
+  // ensure unique roomId
+  if(state.rooms.some(r=>r.roomId===rid)){
+    alert("A room with this ID already exists.");
+    return;
+  }
+
+  const roomObj = {
+    roomId: rid,
+    type: type,
+    baseRate: rate>0?rate:getDefaultRateByType(type),
+    status: "vacant",
+    maxGuests: pax>0?pax:2,
+    notes: notes
+  };
+  state.rooms.push(roomObj);
+
+  // queue for sync
+  state.pendingQueue.push({
+    queueId: "Q-" + Date.now() + "-" + Math.floor(Math.random()*9999),
+    type: "addRoom",
+    data: roomObj,
+    timestamp: nowISO(),
+    synced: false,
+    recordedByUser: state.currentUser ? state.currentUser.username : "(unknown)"
+  });
+
+  saveState();
+  closeAddRoomModal();
+  renderAll();
+  alert("Room "+rid+" added.");
+}
+
+/* ---- MODAL OPEN/CLOSE HELPERS ---- */
+function openCheckInModal(roomId, fromReserved=false){
+  const r=getRoomById(roomId);
+  if(!r) return;
+
+  // Default reset
+  const guestNameEl = document.getElementById("ci_guestName");
+  const guestPhoneEl= document.getElementById("ci_guestPhone");
+  const nightsEl   = document.getElementById("ci_nights");
+  const discEl     = document.getElementById("ci_discount");
+  const paidNowEl  = document.getElementById("ci_paid");     // money paid now at check-in
+  const balEl      = document.getElementById("ci_balance");  // computed balance
+
+  document.getElementById("ci_roomId").value = r.roomId;
+  if(guestNameEl) guestNameEl.value="";
+  if(guestPhoneEl) guestPhoneEl.value="";
+  if(nightsEl) nightsEl.value=1;
+  if(discEl) discEl.value=0;
+  if(paidNowEl) paidNowEl.value=0;
+
+  // If this is from a reservation, bring EVERYTHING over
+  if(fromReserved){
+    const resv = (state.reservations||[]).find(x=>x.roomId===roomId && x.status==='active');
+    if(resv){
+      if(guestNameEl && resv.guestName) guestNameEl.value = resv.guestName;
+      if(guestPhoneEl && resv.guestPhone) guestPhoneEl.value = resv.guestPhone;
+      if(nightsEl && resv.nights) nightsEl.value = resv.nights;
+      if(discEl && typeof resv.discountKPerNight==='number') discEl.value = resv.discountKPerNight;
+
+      // Compute balance using reservation math (first-night discount rule respected in calcTotalsWithPerNightDiscount)
+      const baseRate = (typeof resv.baseRatePerNight==='number') ? resv.baseRatePerNight : r.baseRate;
+      const calc = calcTotalsWithPerNightDiscount(baseRate, (parseFloat(discEl.value)||0), (parseInt(nightsEl.value)||1));
+      const total = calc.fullTotal;
+      const alreadyPaid = Number(resv.depositPaid||0); // money already paid at reservation
+      const bal = Math.max(0, total - alreadyPaid);
+
+      // Show computed balance; leave "paid now" at 0 for cashier to enter only new money
+      if(balEl) balEl.textContent = "K"+bal.toFixed(2);
+
+      // Stash these on the modal for confirmCheckIn to use
+      const modal = document.getElementById("checkInModal");
+      if(modal){
+        modal.dataset.reservationId = resv.reservationId;
+        modal.dataset.reservationPaid = String(alreadyPaid);
+        modal.dataset.reservationTotal = String(total);
+      }
+    }
+  }
+
+  updateCheckInCalc && updateCheckInCalc();
+  document.getElementById("checkInModal").classList.remove("hidden");
+}
+function tryRecalcReservedBalance(){
+  try{
+    const balEl = document.getElementById('ci_res_balance');
+    const addEl = document.getElementById('ci_res_addPay');
+    if(!balEl || !addEl) return;
+    const base = Number(balEl.dataset.baseBalance || balEl.value || 0);
+    const add  = Number(addEl.value || 0);
+    const newBal = Math.max(0, base - add);
+    balEl.value = newBal.toFixed(2);
+  }catch(e){}
+}
+
+function closeCheckInModal(){
+  document.getElementById("checkInModal").classList.add("hidden");
+}
+
+function openReserveModal(roomId){
+  const r=getRoomById(roomId);
+  if(!r) return;
+  document.getElementById("rs_roomId").value=r.roomId;
+  document.getElementById("rs_guestName").value="";
+  document.getElementById("rs_guestPhone").value="";
+  document.getElementById("rs_nights").value=1;
+  document.getElementById("rs_discount").value=0;
+  document.getElementById("rs_paid").value=0;
+  document.getElementById("rs_eta").value="";
+  updateReserveCalc();
+  document.getElementById("reserveModal").classList.remove("hidden");
+}
+function closeReserveModal(){
+  document.getElementById("reserveModal").classList.add("hidden");
+  document.getElementById("rs_warning").classList.add("hidden");
+}
+
+function openExtendModal(idOrRoom){
+  let st = state.stays.find(s=>s.stayId===idOrRoom || s.roomId===idOrRoom);
+  if(!st) return;
+  document.getElementById("ex_guestName").textContent=st.guestName;
+  document.getElementById("ex_roomId").textContent=st.roomId;
+  document.getElementById("ex_currentCheckout").textContent=fmtDateShort(st.plannedCheckoutDateTime);
+  document.getElementById("ex_addNights").value=1;
+  document.getElementById("ex_paid").value=0;
+  document.getElementById("ex_rateNight").textContent=st.baseRatePerNight;
+  updateExtendCalc();
+  document.getElementById("extendModal").classList.remove("hidden");
+}
+function closeExtendModal(){
+  document.getElementById("extendModal").classList.add("hidden");
+}
+
+function openCheckoutModal(idOrRoom){
+  let st = state.stays.find(s=>s.stayId===idOrRoom || s.roomId===idOrRoom);
+  if(!st) return;
+  document.getElementById("co_guestName").textContent=st.guestName;
+  document.getElementById("co_roomId").textContent=st.roomId;
+  document.getElementById("co_balanceDue").textContent=st.balanceDue;
+  document.getElementById("co_paidNow").value=st.balanceDue;
+  document.getElementById("co_checkoutTime").textContent=fmtDateShort(nowISO());
+  document.getElementById("checkoutModal").classList.remove("hidden");
+}
+function closeCheckoutModal(){
+  document.getElementById("checkoutModal").classList.add("hidden");
+}
+
+function closeExtendModalAndRefresh(){
+  closeExtendModal();
+  renderAll();
+}
+
+function openUserModal(){
+  document.getElementById("um_username").value="";
+  document.getElementById("um_password").value="";
+  document.getElementById("um_role").value="attendant";
+  document.getElementById("userModal").classList.remove("hidden");
+}
+function closeUserModal(){
+  document.getElementById("userModal").classList.add("hidden");
+}
+
+function closeReceiptModal(){
+  document.getElementById("receiptModal").classList.add("hidden");
+}
+
+/* ---- CALC & CONFIRM ACTIONS ---- */
+function updateCheckInCalc(){
+  const roomId=document.getElementById("ci_roomId").value;
+  const r=getRoomById(roomId);
+  if(!r) return;
+  const nights=parseInt(document.getElementById("ci_nights").value)||1;
+  const disc =parseFloat(document.getElementById("ci_discount").value)||0;
+  const paid =parseFloat(document.getElementById("ci_paid").value)||0;
+
+  const calc=calcTotalsWithPerNightDiscount(r.baseRate,disc,nights);
+  const total=calc.fullTotal;
+
+  const checkoutISO=calcCheckoutFromNights(nowISO(), nights);
+  const balance= total - paid;
+
+  document.getElementById("ci_rateNight").textContent=calc.firstNightCost;
+  document.getElementById("ci_sumNights").textContent=nights;
+  document.getElementById("ci_total").textContent=total;
+  document.getElementById("ci_balance").textContent=balance;
+  document.getElementById("ci_checkoutTime").textContent=fmtDateShort(checkoutISO);
+}
+
+function confirmCheckIn(){
+  const roomId=document.getElementById("ci_roomId").value;
+  const r=getRoomById(roomId);
+  if(!r) return;
+  const guestName=document.getElementById("ci_guestName").value.trim();
+  const guestPhone=document.getElementById("ci_guestPhone").value.trim();
+  const nights=parseInt(document.getElementById("ci_nights").value)||1;
+  const disc =parseFloat(document.getElementById("ci_discount").value)||0;
+  const paid =parseFloat(document.getElementById("ci_paid").value)||0;
+  const calc=calcTotalsWithPerNightDiscount(r.baseRate,disc,nights);
+  const total=calc.fullTotal;
+  const checkoutISO=calcCheckoutFromNights(nowISO(), nights);
+  const bal= total - paid;
+
+  const stay = {
+    stayId: "STAY-"+Date.now(),
+    guestName,
+    guestPhone,
+    roomId:r.roomId,
+    roomType:r.type,
+    baseRatePerNight:r.baseRate,
+    discountKPerNight:disc,
+    effectiveRatePerNight:calc.firstNightCost,
+    checkInDateTime: nowISO(),
+    plannedCheckoutDateTime: checkoutISO,
+    actualCheckoutDateTime:"",
+    status:"checked-in",
+    nights:nights,
+    totalAmountDue: total,
+    amountPaid: paid,
+    balanceDue: bal,
+    updatedAt: nowISO()
+  };
+  state.stays.push(stay);
+
+  r.status="occupied";
+
+  if(paid>0){
+    pushPaymentToQueue({
+      action:"check-in",
+      roomId:r.roomId,
+      guestName:guestName,
+      amount:paid
+    });
+  }
+
+  try{
+  const addEl = document.getElementById('ci_res_addPay');
+  const addPay = Number(addEl?.value || 0);
+  const resv = (state.reservations||[]).find(x => x.roomId===r.roomId && !x.cancelled && !x.checkedIn);
+  if(resv){
+    const oriPaid = Number(resv.amountPaid || resv.deposit || resv.paid || 0);
+    resv.amountPaid = oriPaid + (addPay > 0 ? addPay : 0);
+    resv.checkedIn  = true;
+    const nights = Number(document.getElementById('ci_nights')?.value || resv.nights || 1);
+    const rate   = Number(document.getElementById('ci_rate')?.value   || resv.ratePerNight || r.baseRate || 0);
+    const disc   = Number(document.getElementById('ci_discount')?.value|| resv.discount || 0);
+    const totals = computeStayTotals(rate, nights, disc);
+    resv.totalDue = Number(totals.total || 0);
+    resv.balance  = Math.max(0, resv.totalDue - Number(resv.amountPaid || 0));
+  }
+}catch(e){}
+try{ r.status = "occupied"; }catch(e){}
+// --- Reservation carry-over apply: add any new payment to depositPaid and mark checked-in
+try{
+  const modal = document.getElementById("checkInModal");
+  const resId = modal?.dataset?.reservationId;
+  let resv = null;
+  if(resId){
+    resv = getReservationById(resId);
+  }else{
+    // fallback by roomId + active
+    resv = (state.reservations||[]).find(x=>x.roomId===r.roomId && x.status==='active');
+  }
+  if(resv){
+    const paidNow = parseFloat(document.getElementById("ci_paid")?.value||"0")||0;
+    resv.depositPaid = Number(resv.depositPaid||0) + (paidNow>0?paidNow:0);
+    resv.status = "checkedIn";
+    resv.updatedAt = nowISO();
+    // Recompute final totals snapshot for the reservation record
+    const nights = parseInt(document.getElementById("ci_nights")?.value)||resv.nights||1;
+    const disc   = parseFloat(document.getElementById("ci_discount")?.value)||resv.discountKPerNight||0;
+    const base   = (typeof resv.baseRatePerNight==='number') ? resv.baseRatePerNight : r.baseRate;
+    const calc   = calcTotalsWithPerNightDiscount(base, disc, nights);
+    resv.fullTotal = calc.fullTotal;
+    resv.balance   = Math.max(0, resv.fullTotal - Number(resv.depositPaid||0));
+  }
+}catch(e){}
+  saveState();
+  closeCheckInModal();
+  renderAll();
+
+  // no receipt for check-in
+}
+
+function updateReserveCalc(){
+  const roomId=document.getElementById("rs_roomId").value;
+  const r=getRoomById(roomId);
+  if(!r) return;
+  const nights=parseInt(document.getElementById("rs_nights").value)||1;
+  const disc =parseFloat(document.getElementById("rs_discount").value)||0;
+  const paid =parseFloat(document.getElementById("rs_paid").value)||0;
+
+  const calc=calcTotalsWithPerNightDiscount(r.baseRate,disc,nights);
+  const total=calc.fullTotal;
+  const requiredDeposit = calc.firstNightCost;
+
+  const checkoutISO=calcCheckoutFromNights(nowISO(), nights);
+
+  document.getElementById("rs_rateNight").textContent=calc.firstNightCost;
+  document.getElementById("rs_sumNights").textContent=nights;
+  document.getElementById("rs_total").textContent=total;
+  document.getElementById("rs_requiredDeposit").textContent=requiredDeposit;
+  document.getElementById("rs_paidNowLabel").textContent=paid;
+  document.getElementById("rs_checkoutTime").textContent=fmtDateShort(checkoutISO);
+
+  if(paid < requiredDeposit){
+    document.getElementById("rs_warning").classList.remove("hidden");
+  } else {
+    document.getElementById("rs_warning").classList.add("hidden");
+  }
+}
+
+function confirmReserve(){
+  const roomId=document.getElementById("rs_roomId").value;
+  const r=getRoomById(roomId);
+  if(!r) return;
+  const guestName=document.getElementById("rs_guestName").value.trim();
+  const guestPhone=document.getElementById("rs_guestPhone").value.trim();
+  const nights=parseInt(document.getElementById("rs_nights").value)||1;
+  const disc =parseFloat(document.getElementById("rs_discount").value)||0;
+  const paid =parseFloat(document.getElementById("rs_paid").value)||0;
+  const eta  =document.getElementById("rs_eta").value;
+
+  const calc=calcTotalsWithPerNightDiscount(r.baseRate,disc,nights);
+  const requiredDeposit = calc.firstNightCost;
+  if(paid < requiredDeposit){
+    alert("To reserve, guest must pay FULL first night after discount.\nRequired: K"+requiredDeposit);
+    return;
+  }
+
+  const checkoutISO=calcCheckoutFromNights(eta?eta:nowISO(), nights);
+  const resv = {
+    reservationId:"RSV-"+Date.now(),
+    roomId:r.roomId,
+    roomType:r.type,
+    baseRatePerNight:r.baseRate,
+    discountKPerNight:disc,
+    effectiveRatePerNight:calc.firstNightCost,
+    nights:nights,
+    plannedCheckInDateTime: eta?new Date(eta).toISOString():nowISO(),
+    plannedCheckoutDateTime: checkoutISO,
+    guestName,
+    guestPhone,
+    fullTotal:calc.fullTotal,
+    depositRequired:requiredDeposit,
+    depositPaid:paid,
+    paymentMethod:"Cash",
+    status:"active",
+    createdBy: state.currentUser ? state.currentUser.username : "unknown",
+    createdAt: nowISO(),
+    updatedAt: nowISO()
+  };
+  state.reservations.push(resv);
+
+  r.status="reserved";
+
+  if(paid>0){
+    pushPaymentToQueue({
+      action:"reserve-deposit",
+      roomId:r.roomId,
+      guestName:guestName,
+      amount:paid
+    });
+  }
+
+  saveState();
+  closeReserveModal();
+  renderAll();
+
+  // no receipt for reservation
+}
+
+function updateExtendCalc(){
+  const addNights=parseInt(document.getElementById("ex_addNights").value)||1;
+  const extraPaid=parseFloat(document.getElementById("ex_paid").value)||0;
+
+  const rateNight=parseFloat(document.getElementById("ex_rateNight").textContent)||0;
+  const extraTotal = rateNight * addNights;
+  const newCheckoutMs = Date.now()+addNights*24*3600*1000;
+  const newCheckoutISO = new Date(newCheckoutMs).toISOString();
+
+  document.getElementById("ex_sumNights").textContent=addNights;
+  document.getElementById("ex_total").textContent=extraTotal;
+  document.getElementById("ex_newCheckoutTime").textContent=fmtDateShort(newCheckoutISO);
+}
+
+function confirmExtend(){
+  const addNights=parseInt(document.getElementById("ex_addNights").value)||1;
+  const extraPaid=parseFloat(document.getElementById("ex_paid").value)||0;
+  const roomLabel=document.getElementById("ex_roomId").textContent;
+  const stay=state.stays.find(s=>s.roomId===roomLabel && s.status==="checked-in");
+  if(!stay){
+    alert("Stay not found / not checked in.");
+    return;
+  }
+
+  const newCheckoutMs = new Date(stay.plannedCheckoutDateTime).getTime()+addNights*24*3600*1000;
+  stay.plannedCheckoutDateTime=new Date(newCheckoutMs).toISOString();
+  stay.nights += addNights;
+  stay.amountPaid += extraPaid;
+  stay.balanceDue = Math.max(stay.balanceDue - extraPaid,0);
+  stay.updatedAt=nowISO();
+
+  if(extraPaid>0){
+    pushPaymentToQueue({
+      action:"extend-stay",
+      roomId:stay.roomId,
+      guestName:stay.guestName,
+      amount:extraPaid
+    });
+  }
+
+  saveState();
+  closeExtendModalAndRefresh();
+
+  // no receipt for extend
+}
+
+function confirmCheckout(){
+  const roomLabel=document.getElementById("co_roomId").textContent;
+  const paidNow=parseFloat(document.getElementById("co_paidNow").value)||0;
+  const stay=state.stays.find(s=>s.roomId===roomLabel && s.status==="checked-in");
+  if(!stay){
+    alert("Stay not found / not checked in.");
+    return;
+  }
+
+  stay.amountPaid += paidNow;
+  stay.balanceDue = Math.max(stay.balanceDue - paidNow,0);
+  stay.actualCheckoutDateTime=nowISO();
+  stay.status="checked-out";
+  stay.updatedAt=nowISO();
+
+  const r=getRoomById(roomLabel);
+  if(r){ r.status="cleaning"; }
+
+  if(paidNow>0){
+    pushPaymentToQueue({
+      action:"checkout",
+      roomId:stay.roomId,
+      guestName:stay.guestName,
+      amount:paidNow
+    });
+  }
+
+  saveState();
+  closeCheckoutModal();
+  renderAll();
+
+  // ONLY checkout shows receipt now
+  showReceipt({
+    title:"CHECKOUT RECEIPT",
+    guestName:stay.guestName,
+    roomId:stay.roomId,
+    amount:paidNow,
+    details:`Checkout completed. Balance now K${stay.balanceDue}.`
+  });
+}
+
+function checkInFromReservation(resId){
+  const resv = getReservationById(resId);
+  if(!resv) return;
+
+  const stay = {
+    stayId:"STAY-"+Date.now(),
+    guestName:resv.guestName,
+    guestPhone:resv.guestPhone,
+    roomId:resv.roomId,
+    roomType:resv.roomType,
+    baseRatePerNight:resv.baseRatePerNight || resv.baseRatePerNight===0 ? resv.baseRatePerNight : resv.baseRatePerNight,
+    discountKPerNight:resv.discountKPerNight||0,
+    effectiveRatePerNight:resv.effectiveRatePerNight,
+    checkInDateTime: nowISO(),
+    plannedCheckoutDateTime: resv.plannedCheckoutDateTime,
+    actualCheckoutDateTime:"",
+    status:"checked-in",
+    nights:resv.nights,
+    totalAmountDue: resv.fullTotal,
+    amountPaid: resv.depositPaid,
+    balanceDue: (resv.fullTotal - resv.depositPaid),
+    updatedAt: nowISO()
+  };
+  state.stays.push(stay);
+
+  const r=getRoomById(resv.roomId);
+  if(r){ r.status="occupied"; }
+
+  resv.status="converted";
+  resv.updatedAt=nowISO();
+
+  saveState();
+  renderAll();
+
+  // no receipt here
+}
+
+function cancelReservation(resId){
+  const resv=getReservationById(resId);
+  if(!resv) return;
+  resv.status="cancelled";
+  resv.updatedAt=nowISO();
+
+  const r=getRoomById(resv.roomId);
+  if(r && r.status==="reserved"){
+    r.status="vacant";
+  }
+
+  saveState();
+  renderAll();
+}
+
+function showReceipt({title,guestName,roomId,amount,details}){
+  const body=document.getElementById("receiptContent");
+  body.innerHTML=`
+    <div class="text-slate-800 font-semibold text-center text-sm">${title}</div>
+    <div class="text-[11px] text-slate-500 text-center leading-4 mb-2">${nowISO()}</div>
+    <div class="text-[12px] text-slate-700 leading-4">
+      <div><span class="font-medium text-slate-800">Guest:</span> ${guestName}</div>
+      <div><span class="font-medium text-slate-800">Room:</span> ${roomId}</div>
+      <div><span class="font-medium text-slate-800">Paid Now:</span> K${amount}</div>
+      <div class="mt-2 text-[11px] text-slate-600 leading-4">${details}</div>
+    </div>
+  `;
+  document.getElementById("receiptModal").classList.remove("hidden");
+}
+
+function printReceipt(){
+  window.print();
+}
+function printReceiptPDF(){
+  window.print();
+}
+function shareReceiptWhatsApp(){
+  const body=document.getElementById("receiptContent").innerText;
+  const encoded=encodeURIComponent(body);
+  const url="https://wa.me/?text="+encoded;
+  window.open(url,"_blank");
+}
+
+/* =========================================================
+   GLOBAL RENDER
+=========================================================*/
+function renderAll(){
+  renderOnlineStatus();
+  renderPendingCount();
+  renderBackupCount();
+  renderCurrentUserInfo();
+  renderDashboard();
+  renderPosRooms();
+  renderActiveStays();
+  renderReservationsList();
+  renderManagerRooms();
+  renderRatesTable();
+  renderUsersTable();
+  // cash-up & closures are rendered when that section opens
+}
+
+/* =========================================================
+   INIT / EVENT LISTENERS
+=========================================================*/
+window.addEventListener("load", ()=>{
+  // login
+  document.getElementById("loginBtn").addEventListener("click", ()=>{
+    const user=document.getElementById("loginUsername").value.trim();
+    const pass=document.getElementById("loginPassword").value.trim();
+    const u=loginUser(user,pass);
+    if(!u){
+      failedLoginCount++;
+      document.getElementById("loginError").classList.remove("hidden");
+      return;
+    }
+    document.getElementById("loginError").classList.add("hidden");
+    showAppForUser();
+  });
+
+  document.getElementById("resetDemoBtn").addEventListener("click", resetDemoState);
+  document.getElementById("logoutBtn").addEventListener("click", logoutUser);
+
+  document.getElementById("syncBtn").addEventListener("click", attemptSync);
+
+  // calc listeners
+  ["ci_nights","ci_discount","ci_paid"].forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener("input", updateCheckInCalc);
+  });
+  ["rs_nights","rs_discount","rs_paid","rs_eta"].forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener("input", updateReserveCalc);
+  });
+  ["ex_addNights","ex_paid"].forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener("input", updateExtendCalc);
+  });
+
+  // open Add User modal
+  // (button is already wired with onclick="openUserModal()")
+
+  // online/offline badge
+  window.addEventListener("online", renderOnlineStatus);
+  window.addEventListener("offline", renderOnlineStatus);
+
+  
+
+  renderAll();
+});
+</script>
+
+<script>
+function computeStayTotals(ratePerNight, nights, discountPerNight){
+  try{
+    nights = Number(nights||0);
+    ratePerNight = Number(ratePerNight||0);
+    discountPerNight = Number(discountPerNight||0);
+    if(nights <= 0 || ratePerNight < 0) return {subtotal:0, discount:0, freeNights:0, total:0};
+    let chargeableNights = nights;
+    let freeNights = 0;
+    if(nights > 10){
+      freeNights += 1;
+      chargeableNights = nights - 1;
+    }
+    const base = chargeableNights * ratePerNight;
+    const discount = discountPerNight > 0 ? Math.min(discountPerNight, ratePerNight) : 0;
+    const total = Math.max(0, base - discount);
+    return {subtotal: base, discount, freeNights, total};
+  }catch(e){
+    return {subtotal:0, discount:0, freeNights:0, total:0};
+  }
+}
+</script>
+</body>
+</html>
