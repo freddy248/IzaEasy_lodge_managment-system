@@ -2807,5 +2807,190 @@ function computeStayTotals(ratePerNight, nights, discountPerNight){
   }
 }
 </script>
+
+<!-- GUEST DETAILS MODAL -->
+<div id="guestDetailsModal" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-4 card-shadow text-sm">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="font-semibold text-slate-800 text-base">Guest Details</div>
+        <div class="text-[11px] text-slate-500 leading-3">Tap to close or take action below.</div>
+      </div>
+      <button class="text-slate-400 hover:text-slate-600 text-xs font-medium" onclick="closeGuestDetailsModal()">✕</button>
+    </div>
+    <div class="space-y-2 text-[12px] text-slate-700 leading-5">
+      <div>Guest: <span id="gd_guestName" class="font-medium text-slate-900"></span></div>
+      <div>Phone: <span id="gd_guestPhone"></span></div>
+      <div>Status: <span id="gd_status" class="px-2 py-0.5 rounded text-white text-[10px]"></span></div>
+      <div>Room: <span id="gd_roomId" class="font-medium"></span> <span id="gd_roomType" class="text-slate-500"></span></div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>Nights: <span id="gd_nights">-</span></div>
+        <div>ETA / Checkout: <span id="gd_time">-</span></div>
+      </div>
+      <div class="bg-slate-50 rounded border border-slate-200 p-3 text-[12px] leading-5">
+        <div>Total Due: K<span id="gd_total">0</span></div>
+        <div>Paid: K<span id="gd_paid">0</span></div>
+        <div class="font-semibold">Balance: K<span id="gd_balance">0</span></div>
+      </div>
+    </div>
+    <div class="flex flex-wrap justify-end gap-2 mt-4">
+      <button class="rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[12px] font-medium px-3 py-2" onclick="closeGuestDetailsModal()">Close</button>
+      <button id="gd_checkinBtn" class="rounded bg-indigo-600 hover:bg-indigo-700 text-white text-[12px] font-medium px-3 py-2 hidden" onclick="fromGD_checkIn()">Check In</button>
+      <button id="gd_checkoutBtn" class="rounded bg-red-600 hover:bg-red-700 text-white text-[12px] font-medium px-3 py-2 hidden" onclick="fromGD_checkout()">Checkout</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ===== Guest Details helpers =====
+function closeGuestDetailsModal(){
+  var m = document.getElementById("guestDetailsModal");
+  if(m) m.classList.add("hidden");
+}
+function setGDBadge(el, status){
+  var map = {
+    "reserved": {cls:"bg-amber-600", label:"Reserved"},
+    "checked-in": {cls:"bg-red-600", label:"Occupied"},
+    "occupied": {cls:"bg-red-600", label:"Occupied"},
+    "cleaning": {cls:"bg-blue-600", label:"Cleaning"},
+    "vacant": {cls:"bg-emerald-600", label:"Vacant"}
+  };
+  var it = map[status] || {cls:"bg-slate-600", label: status};
+  el.className = "px-2 py-0.5 rounded text-white text-[10px] " + it.cls;
+  el.textContent = it.label;
+}
+function openGuestDetails(roomId){
+  try{
+    var r = getRoomById(roomId);
+    if(!r) return;
+    var modal = document.getElementById("guestDetailsModal");
+    if(!modal) return;
+    var isReserved = r.status === "reserved";
+    var isOccupied = r.status === "occupied";
+
+    var name = "-", phone = "-", nights = "-", timeStr = "-", total = 0, paid = 0, bal = 0, statusTag = r.status, roomType = r.type || "";
+    if(isOccupied){
+      var st = (state.stays||[]).find(function(x){ return x.roomId===roomId && x.status==="checked-in"; });
+      if(!st) return;
+      try{ if(typeof canonicalizeStay==="function") canonicalizeStay(st); }catch(e){}
+      name = st.guestName || "-";
+      phone = st.guestPhone || "-";
+      nights = st.nights || "-";
+      timeStr = "Checkout " + fmtDateShort(st.plannedCheckoutDateTime);
+      total = Number(st.totalAmountDue||0);
+      paid = Number(st.amountPaid||0);
+      bal = Number(st.balanceDue||0);
+      statusTag = "occupied";
+    } else if(isReserved){
+      var rs = (state.reservations||[]).find(function(x){ return x.roomId===roomId && x.status==="active"; });
+      if(!rs) return;
+      name = rs.guestName || "-";
+      phone = rs.guestPhone || "-";
+      nights = rs.nights || "-";
+      timeStr = "ETA " + fmtDateShort(rs.plannedCheckInDateTime);
+      total = Number(rs.fullTotal||0);
+      paid = Number(rs.depositPaid||0);
+      bal = Math.max(0, total - paid);
+      statusTag = "reserved";
+      document.getElementById("gd_checkinBtn").classList.remove("hidden");
+      document.getElementById("gd_checkoutBtn").classList.add("hidden");
+      document.getElementById("gd_checkinBtn").dataset.roomId = roomId;
+    }
+
+    document.getElementById("gd_guestName").textContent = name;
+    document.getElementById("gd_guestPhone").textContent = phone;
+    document.getElementById("gd_roomId").textContent = roomId;
+    document.getElementById("gd_roomType").textContent = roomType ? "("+roomType+")" : "";
+    document.getElementById("gd_nights").textContent = nights;
+    document.getElementById("gd_time").textContent = timeStr;
+    document.getElementById("gd_total").textContent = total;
+    document.getElementById("gd_paid").textContent = paid;
+    document.getElementById("gd_balance").textContent = bal;
+    setGDBadge(document.getElementById("gd_status"), statusTag);
+
+    if(isOccupied){
+      document.getElementById("gd_checkoutBtn").classList.remove("hidden");
+      document.getElementById("gd_checkinBtn").classList.add("hidden");
+      document.getElementById("gd_checkoutBtn").dataset.roomId = roomId;
+    } else if(isReserved){
+      document.getElementById("gd_checkinBtn").classList.remove("hidden");
+    } else {
+      document.getElementById("gd_checkoutBtn").classList.add("hidden");
+      document.getElementById("gd_checkinBtn").classList.add("hidden");
+    }
+
+    modal.classList.remove("hidden");
+  }catch(e){
+    console.warn("openGuestDetails error", e);
+  }
+}
+function fromGD_checkIn(){
+  var btn = document.getElementById("gd_checkinBtn");
+  var rid = btn && btn.dataset ? btn.dataset.roomId : null;
+  closeGuestDetailsModal();
+  if(rid) openCheckInModal(rid);
+}
+function fromGD_checkout(){
+  var btn = document.getElementById("gd_checkoutBtn");
+  var rid = btn && btn.dataset ? btn.dataset.roomId : null;
+  closeGuestDetailsModal();
+  if(rid) openCheckoutModal(rid);
+}
+
+// ===== Delegated clicks across POS, Reservations, Rooms/Status =====
+(function(){
+  function findRoomIdFromEl(el){
+    // Prefer data-room-id if present in future patches
+    var node = el;
+    while(node){
+      if(node.getAttribute && node.getAttribute("data-room-id")){
+        return node.getAttribute("data-room-id");
+      }
+      node = node.parentElement;
+    }
+    // Fallback: parse inner text "Room 101"
+    node = el;
+    while(node){
+      if(node.textContent){
+        var m = node.textContent.match(/Room\s+(\d+)/i);
+        if(m) return m[1];
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  function containerHasId(containerId){
+    var c = document.getElementById(containerId);
+    return c && c.contains ? c : null;
+  }
+
+  document.addEventListener("click", function(e){
+    // Ignore explicit action buttons (we don't override core flows)
+    if(e.target.closest && e.target.closest("button")) return;
+
+    var targets = ["posRoomsWrapper","reservationsList","managerRoomsWrapper"];
+    for(var i=0;i<targets.length;i++){
+      var c = containerHasId(targets[i]);
+      if(!c) continue;
+      if(c.contains(e.target)){
+        var rid = findRoomIdFromEl(e.target);
+        if(!rid) return;
+        // Only open for reserved/occupied
+        try{
+          var room = getRoomById(rid);
+          if(room && (room.status==="reserved" || room.status==="occupied")){
+            openGuestDetails(rid);
+            e.preventDefault();
+            return;
+          }
+        }catch(err){}
+      }
+    }
+  }, true);
+})();
+</script>
+
 </body>
 </html>
