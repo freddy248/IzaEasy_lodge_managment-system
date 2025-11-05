@@ -156,7 +156,7 @@ if ('serviceWorker' in navigator) {
         </button>
 
         <button data-section="cashupSection"
-          class="sidebarBtn managerOnly flex w-full items-center justify-between px-4 py-2 text-left hover:bg-slate-800 rounded-lg">
+          class="sidebarBtn bothRoles flex w-full items-center justify-between px-4 py-2 text-left hover:bg-slate-800 rounded-lg">
           <span class="flex items-center gap-2">
             <span class="inline-block w-2 h-2 rounded-full bg-lime-400"></span>
             Shift Cash-Up
@@ -2992,5 +2992,164 @@ function fromGD_checkout(){
 })();
 </script>
 
+
+<script>
+// === Session Auto-Restore + Enter-to-Login Enhancements (patch) ===
+(function(){
+  function attachEnterToLogin(){
+    var u = document.getElementById('loginUsername');
+    var p = document.getElementById('loginPassword');
+    [u,p].forEach(function(el){
+      if(!el) return;
+      el.addEventListener('keydown', function(e){
+        if(e.key === 'Enter'){
+          var btn = document.getElementById('loginBtn');
+          if(btn) btn.click();
+        }
+      }, { once:false });
+    });
+  }
+
+  function ensureLoginClickHandler(){
+    var btn = document.getElementById('loginBtn');
+    if(!btn) return;
+    // Prevent stacking multiple listeners on subsequent refreshes
+    if(btn.__izaLoginBound) return;
+    btn.__izaLoginBound = true;
+    btn.addEventListener('click', function(){
+      var un = (document.getElementById('loginUsername')||{}).value || '';
+      var pw = (document.getElementById('loginPassword')||{}).value || '';
+      un = un.trim(); pw = pw.trim();
+      var user = null;
+      try { user = loginUser(un, pw); } catch(e){ /* fallback */ }
+      if(user){
+        var err = document.getElementById('loginError');
+        if(err) err.classList.add('hidden');
+        // Persisted in loginUser(); now show the app
+        try { showAppForUser(); } catch(e){ console.warn('showAppForUser error', e); }
+      } else {
+        var err = document.getElementById('loginError');
+        if(err) err.classList.remove('hidden');
+      }
+    });
+  }
+
+  function wireOnlineBadge(){
+    try {
+      if(typeof renderOnlineStatus === 'function'){
+        renderOnlineStatus();
+        window.addEventListener('online', renderOnlineStatus);
+        window.addEventListener('offline', renderOnlineStatus);
+      }
+    } catch(e){ /* ignore */ }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    // Auto-restore session on refresh if state.currentUser exists
+    try {
+      if (typeof state !== 'undefined' && state && state.currentUser){
+        showAppForUser();
+      } else {
+        showLogin();
+      }
+    } catch(e){ /* ignore */ }
+
+    // Keep Enter-to-login behavior in place
+    attachEnterToLogin();
+
+    // Make sure the login button actually logs in when clicked
+    ensureLoginClickHandler();
+
+    // Keep the online/offline badge updating
+    wireOnlineBadge();
+  });
+})();
+</script>
+
 </body>
 </html>
+
+<script>
+// === Auto +260 Phone Prefix (Zambia) ===
+// Applies to inputs likely to be phone fields: type="tel" or id/name/class containing 'phone' or 'mobile'.
+(function(){
+  function looksLikePhone(el){
+    if(!el || el.tagName !== 'INPUT') return false;
+    const t = (el.getAttribute('type')||'').toLowerCase();
+    const id = (el.id||'').toLowerCase();
+    const name = (el.name||'').toLowerCase();
+    const cls = (el.className||'').toLowerCase();
+    return t==='tel' || id.includes('phone') || name.includes('phone') || cls.includes('phone') ||
+           id.includes('mobile') || name.includes('mobile') || cls.includes('mobile');
+  }
+
+  function normalizeToZMW(el){
+    if(!el) return;
+    let v = el.value || '';
+    v = v.replace(/\s+/g,'');
+    // If already has +260, keep as-is (but collapse extra + signs)
+    if (/^\+260/.test(v)) {
+      el.value = v.replace(/^\++/,'+'); // ensure single leading +
+      return;
+    }
+    // If starts with 0, convert to +260 + rest (drop the leading 0)
+    if (/^0\d{1,}$/.test(v)) {
+      el.value = '+260' + v.slice(1);
+      return;
+    }
+    // If pasting 260XXXXXXXXX without +, add +
+    if (/^260\d{7,}$/.test(v)) {
+      el.value = '+' + v;
+      return;
+    }
+    // If just typing a lone '0', convert immediately to +260
+    if (v === '0') {
+      el.value = '+260';
+      return;
+    }
+    el.value = v;
+  }
+
+  function bindField(el){
+    if(!looksLikePhone(el) || el.dataset.phoneZmwBound) return;
+    el.dataset.phoneZmwBound = '1';
+
+    el.addEventListener('input', function(){
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const oldLen = (el.value||'').length;
+      normalizeToZMW(el);
+      const newLen = (el.value||'').length;
+      if (newLen > oldLen) {
+        el.setSelectionRange(newLen, newLen);
+      } else {
+        try { el.setSelectionRange(start, end); } catch(_){}
+      }
+    });
+
+    el.addEventListener('blur', function(){
+      normalizeToZMW(el);
+    });
+  }
+
+  function scanAll(){
+    document.querySelectorAll('input').forEach(bindField);
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    scanAll();
+  });
+
+  const mo = new MutationObserver(function(muts){
+    for (const m of muts){
+      m.addedNodes && m.addedNodes.forEach(function(n){
+        if(n.nodeType === 1){
+          if(n.tagName === 'INPUT') bindField(n);
+          else n.querySelectorAll && n.querySelectorAll('input').forEach(bindField);
+        }
+      });
+    }
+  });
+  try { mo.observe(document.documentElement, {childList:true, subtree:true}); } catch(e){}
+})();
+</script>
